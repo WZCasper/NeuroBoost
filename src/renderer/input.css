@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/*
+  Design tokens.
+  Typography deliberately uses Windows' own native typefaces (Segoe UI
+  Variable for UI text, Cascadia Code for data/metrics) instead of a
+  web-font CDN: NeuroBoost is an offline-capable Windows-only tool, so it
+  should never depend on a network fetch just to render its own UI — and
+  Segoe UI / Cascadia Code are literally the OS this app manages.
+*/
+@theme {
+  --font-sans: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI Semibold', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', 'Cascadia Mono', Consolas, ui-monospace, monospace;
+
+  --color-bg: #0c1016;
+  --color-panel: #131822;
+  --color-panel-2: #1a212c;
+  --color-border: #232b38;
+  --color-text: #edeff3;
+  --color-text-dim: #8992a3;
+  --color-accent: #ff8a3d;
+  --color-accent-dim: #d96f2c;
+  --color-good: #4ade80;
+  --color-warn: #f5c563;
+  --color-danger: #f16a6a;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    font-size: 14px;
+  }
+  ::selection {
+    background-color: var(--color-accent);
+    color: #0c1016;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition-duration: 0.001ms !important;
+      animation-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  .nb-card {
+    @apply rounded-md border border-border bg-panel p-5;
+  }
+
+  .nb-nav-item {
+    @apply flex w-full items-center gap-3 rounded-sm border-l-2 border-transparent px-3 py-2.5 text-left text-[13px] text-text-dim transition-colors hover:bg-panel-2 hover:text-text;
+  }
+  .nb-nav-item.is-active {
+    @apply border-accent bg-panel-2 text-text;
+  }
+
+  .nb-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm border border-border bg-panel-2 px-4 py-2 text-[13px] font-medium text-text transition-colors hover:border-accent-dim disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .nb-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm bg-accent px-4 py-2 text-[13px] font-semibold text-[#1a0e05] transition-colors hover:bg-accent-dim disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .nb-btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm border border-danger/40 bg-danger/10 px-4 py-2 text-[13px] font-medium text-danger transition-colors hover:bg-danger/20 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .nb-pill {
+    @apply inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium;
+  }
+  .nb-pill-safe {
+    @apply border-good/30 bg-good/10 text-good;
+  }
+  .nb-pill-optional {
+    @apply border-warn/30 bg-warn/10 text-warn;
+  }
+  .nb-pill-neutral {
+    @apply border-border bg-panel-2 text-text-dim;
+  }
+
+  .nb-row {
+    @apply flex items-center justify-between gap-4 border-b border-border py-3 last:border-b-0;
+  }
+
+  .nb-toggle {
+    @apply relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-border bg-panel-2 transition-colors;
+  }
+  .nb-toggle.is-on {
+    @apply border-accent-dim bg-accent;
+  }
+  .nb-toggle-knob {
+    @apply absolute left-0.5 h-4.5 w-4.5 rounded-full bg-text transition-transform;
+  }
+  .nb-toggle.is-on .nb-toggle-knob {
+    transform: translateX(20px);
+    background-color: #1a0e05;
+  }
+
+  .nb-mono {
+    @apply font-mono tabular-nums;
+  }
+}

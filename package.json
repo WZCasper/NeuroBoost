@@ -1,0 +1,55 @@
+{
+  "name": "neuroboost",
+  "version": "1.0.0",
+  "description": "NeuroBoost — safe, open-source system optimizer for Windows 10/11 (debloater, telemetry blocker, RAM standby-list cleaner, process priority manager).",
+  "author": "NeuroBoost",
+  "license": "MIT",
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/renderer/input.css -o ./src/renderer/styles.css --minify",
+    "start": "npm run build:css && electron .",
+    "postinstall": "electron-builder install-app-deps",
+    "dist": "npm run build:css && electron-builder --win nsis",
+    "dist:dir": "npm run build:css && electron-builder --win nsis --dir"
+  },
+  "devDependencies": {
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  },
+  "build": {
+    "appId": "com.neuroboost.app",
+    "productName": "NeuroBoost",
+    "copyright": "Copyright (c) 2026 NeuroBoost",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      { "from": "resources/scripts", "to": "scripts" }
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "requestedExecutionLevel": "requireAdministrator"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NeuroBoost",
+      "artifactName": "NeuroBoost-Setup-${version}.${ext}"
+    }
+  }
+}
