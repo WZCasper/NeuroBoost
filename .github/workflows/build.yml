@@ -27,10 +27,10 @@ jobs:
         run: npm ci
 
       - name: Build the Windows installer
-        shell: pwsh
+        shell: cmd
         run: |
-          npm run dist 2>&1 | Tee-Object -FilePath build-output.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run dist > build-output.log 2>&1
+          exit /b %errorlevel%
 
       - name: Publish installer as a GitHub Release
         if: success()
@@ -52,7 +52,12 @@ jobs:
           git config user.name "neuroboost-ci"
           git config user.email "ci@neuroboost.local"
           New-Item -ItemType Directory -Force -Path .ci | Out-Null
-          Copy-Item build-output.log .ci/last-build.log -Force
+          if (Test-Path build-output.log) {
+            Copy-Item build-output.log .ci/last-build.log -Force
+          } else {
+            "No build-output.log was produced by this run." | Out-File -FilePath .ci/last-build.log -Encoding utf8
+          }
           git add .ci/last-build.log
           git commit -m "ci: update last build log [skip ci]" --allow-empty
           git push origin HEAD:main
+          Write-Host "log push exit code: $LASTEXITCODE"
