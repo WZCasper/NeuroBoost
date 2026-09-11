@@ -57,7 +57,7 @@ jobs:
           } else {
             "No build-output.log was produced by this run." | Out-File -FilePath .ci/last-build.log -Encoding utf8
           }
-          git add .ci/last-build.log
+          git add -f .ci/last-build.log
           git commit -m "ci: update last build log [skip ci]" --allow-empty
           git push origin HEAD:main
           Write-Host "log push exit code: $LASTEXITCODE"
