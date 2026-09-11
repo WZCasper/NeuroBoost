@@ -76,13 +76,16 @@ GitHub mobile app works too):
 2. Open the **Actions** tab of the repository → you'll see the
    "Build NeuroBoost installer" workflow → click **Run workflow**.
 3. Wait for the run to go green (a few minutes).
-4. Open the finished run → under **Artifacts**, download `NeuroBoost-Setup`.
-   That's a zip containing `NeuroBoost-Setup-1.0.0.exe`.
+4. Open the repository's **Releases** page (right sidebar on the repo home
+   page) → the latest release has `NeuroBoost-Setup-1.0.0.exe` attached as a
+   download.
 5. Copy that `.exe` to any Windows 10/11 PC and run it. Windows will show a
    UAC prompt (the app requires Administrator rights by design) — accept it,
    choose an install folder, and it installs like any normal app.
 
-Every future push to `main` rebuilds the installer automatically.
+Every push to `main` builds and publishes a new release automatically. If a
+build ever fails, `.ci/last-build.log` in the repository always has the full
+log from the most recent run.
 
 ## Building it yourself on a Windows PC (if/when you have terminal access)
 

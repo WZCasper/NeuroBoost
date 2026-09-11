@@ -8,6 +8,9 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -24,11 +27,32 @@ jobs:
         run: npm ci
 
       - name: Build the Windows installer
-        run: npm run dist
+        shell: pwsh
+        run: |
+          npm run dist 2>&1 | Tee-Object -FilePath build-output.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Upload installer as a workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NeuroBoost-Setup
-          path: dist/NeuroBoost-Setup-*.exe
-          if-no-files-found: error
+      - name: Publish installer as a GitHub Release
+        if: success()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $exe = Get-ChildItem dist/NeuroBoost-Setup-*.exe | Select-Object -First 1
+          $tag = "build-$($env:GITHUB_RUN_NUMBER)"
+          gh release create $tag $exe.FullName --repo $env:GITHUB_REPOSITORY --title "NeuroBoost build $($env:GITHUB_RUN_NUMBER)" --notes "Automated build from commit $($env:GITHUB_SHA)"
+
+      # Workflow artifacts live on Azure blob storage which isn't reachable
+      # from every environment, so the build log is also committed straight
+      # into the repo — always readable as a plain file.
+      - name: Publish build log
+        if: always()
+        shell: pwsh
+        run: |
+          git config user.name "neuroboost-ci"
+          git config user.email "ci@neuroboost.local"
+          New-Item -ItemType Directory -Force -Path .ci | Out-Null
+          Copy-Item build-output.log .ci/last-build.log -Force
+          git add .ci/last-build.log
+          git commit -m "ci: update last build log [skip ci]" --allow-empty
+          git push origin HEAD:main
