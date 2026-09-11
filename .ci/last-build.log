@@ -1,6 +1,6 @@
 
 > neuroboost@1.0.0 dist
-> npm run build:css && electron-builder --win nsis
+> npm run build:css && electron-builder --win nsis --publish never
 
 
 > neuroboost@1.0.0 build:css
@@ -8,9 +8,8 @@
 
 [3m[1m[34m≈[39m[22m[23m tailwindcss [34mv4.3.3[39m
 
-Done in [34m94ms[39m
+Done in [34m110ms[39m
   • electron-builder  version=26.15.3 os=10.0.26100
-  • Implicit publishing triggered by CI detection. This behavior will be disabled in electron-builder v27. Please use --publish explicitly.
   • loaded configuration  file=package.json ("build" field)
   • executing @electron/rebuild  electronVersion=44.3.0 arch=x64 buildFromSource=false workspaceRoot=D:\a\NeuroBoost\NeuroBoost projectDir=./ appDir=./
   • installing native dependencies  arch=x64
@@ -33,4 +32,3 @@ Done in [34m94ms[39m
   • signing with signtool.exe  path=dist\NeuroBoost-Setup-1.0.0.__uninstaller.exe
   • signing with signtool.exe  path=dist\NeuroBoost-Setup-1.0.0.exe
   • building block map  blockMapFile=dist\NeuroBoost-Setup-1.0.0.exe.blockmap
-  ⨯ GitHub Personal Access Token is not set, neither programmatically, nor using env "GH_TOKEN"
