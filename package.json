@@ -10,8 +10,8 @@
     "build:css": "tailwindcss -i ./src/renderer/input.css -o ./src/renderer/styles.css --minify",
     "start": "npm run build:css && electron .",
     "postinstall": "electron-builder install-app-deps",
-    "dist": "npm run build:css && electron-builder --win nsis",
-    "dist:dir": "npm run build:css && electron-builder --win nsis --dir"
+    "dist": "npm run build:css && electron-builder --win nsis --publish never",
+    "dist:dir": "npm run build:css && electron-builder --win nsis --dir --publish never"
   },
   "devDependencies": {
     "electron": "^44.3.0",
