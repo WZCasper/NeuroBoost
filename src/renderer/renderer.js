@@ -138,43 +138,73 @@
 
   // ---- приложения (debloat) --------------------------------------------------
   async function loadDebloatCatalog() {
+    const list = $('#debloatList');
+    list.innerHTML = '<div class="py-3 text-[12px] text-text-dim">Сканирование установленных приложений…</div>';
     try {
       const catalog = await call(window.neuroboost.debloat.list());
       state.debloatCatalog = catalog;
       renderDebloatList();
       $('#ovDebloatCount').textContent = catalog.length + ' приложений для удаления';
     } catch (err) {
+      list.innerHTML = '';
       showError('Не удалось загрузить список приложений: ' + err.message);
     }
   }
 
   function renderDebloatList() {
-    const isWin11 = state.systemInfo && state.systemInfo.isWindows11;
     const list = $('#debloatList');
     list.innerHTML = '';
 
-    state.debloatCatalog
-      .filter((app) => !(app.win10Only && isWin11)) // например, скрыть Кортану на Windows 11
-      .forEach((app) => {
-        const row = document.createElement('label');
-        row.className = 'nb-row cursor-pointer';
-        row.innerHTML =
-          '<span class="flex items-center gap-3">' +
-          '<input type="checkbox" class="h-4 w-4 accent-[#ff8a3d]" data-app-id="' + app.id + '" />' +
-          '<span class="text-[13px]">' + escapeHtml(app.name) + '</span>' +
-          '</span>' +
-          '<span class="nb-pill ' + (app.risk === 'safe' ? 'nb-pill-safe' : 'nb-pill-optional') + '">' +
-          (app.risk === 'safe' ? 'безопасно' : 'опционально') +
-          '</span>';
-        list.appendChild(row);
-      });
+    state.debloatCatalog.forEach((app) => {
+      const row = document.createElement('label');
+      row.className = 'nb-row cursor-pointer';
+      row.innerHTML =
+        '<span class="flex items-center gap-3">' +
+        '<input type="checkbox" class="h-4 w-4 accent-[#ff8a3d]" data-app-id="' + app.id + '" />' +
+        '<span class="text-[13px]">' + escapeHtml(app.name) + '</span>' +
+        '</span>';
+      list.appendChild(row);
+    });
 
     $all('input[data-app-id]', list).forEach((cb) => {
       cb.addEventListener('change', () => {
         if (cb.checked) state.debloatSelected.add(cb.dataset.appId);
         else state.debloatSelected.delete(cb.dataset.appId);
+        syncSelectAllCheckbox();
         updateDebloatButton();
       });
+    });
+
+    syncSelectAllCheckbox();
+  }
+
+  function debloatAppName(id) {
+    const found = state.debloatCatalog.find((a) => a.id === id);
+    return found ? found.name : id;
+  }
+
+  function syncSelectAllCheckbox() {
+    const selectAll = $('#debloatSelectAll');
+    if (!selectAll) return;
+    const total = state.debloatCatalog.length;
+    const selected = state.debloatSelected.size;
+    selectAll.checked = total > 0 && selected === total;
+    selectAll.indeterminate = selected > 0 && selected < total;
+  }
+
+  function wireSelectAll() {
+    const selectAll = $('#debloatSelectAll');
+    if (!selectAll) return;
+    selectAll.addEventListener('change', () => {
+      if (selectAll.checked) {
+        state.debloatCatalog.forEach((app) => state.debloatSelected.add(app.id));
+      } else {
+        state.debloatSelected.clear();
+      }
+      $all('input[data-app-id]', $('#debloatList')).forEach((cb) => {
+        cb.checked = state.debloatSelected.has(cb.dataset.appId);
+      });
+      updateDebloatButton();
     });
   }
 
@@ -211,7 +241,7 @@
     const color = entry.status === 'removed' ? 'text-good' : entry.status === 'failed' ? 'text-danger' : 'text-text-dim';
     const label = entry.status === 'removed' ? 'удалено' : entry.status === 'failed' ? 'ошибка' : 'удаление…';
     el.className = color;
-    el.textContent = entry.name + ' — ' + label + (entry.error ? ' (' + entry.error + ')' : '');
+    el.textContent = debloatAppName(entry.id) + ' — ' + label + (entry.error ? ' (' + entry.error + ')' : '');
     el.dataset.appId = entry.id;
 
     const existing = $('#debloatProgress [data-app-id="' + entry.id + '"]');
@@ -252,9 +282,20 @@
     btn.disabled = true;
     try {
       const result = await call(window.neuroboost.telemetry.disable(state.telemetryOptions));
-      state.telemetryCustomized = true;
+      state.telemetryCustomized = result.changed > 0;
       renderTelemetryStatus();
-      $('#telemetryStatusText').textContent = 'Настроено · изменено значений: ' + result.changed;
+
+      if (result.failed > 0) {
+        const failedLabels = result.results
+          .filter((r) => r.status === 'failed')
+          .map((r) => r.label)
+          .join(', ');
+        $('#telemetryStatusText').textContent =
+          'Применено: ' + result.changed + ', не удалось: ' + result.failed + ' (' + failedLabels + ')';
+        showError('Не применилось: ' + failedLabels + '. Остальное применено успешно.');
+      } else {
+        $('#telemetryStatusText').textContent = 'Настроено · применено: ' + result.changed;
+      }
     } catch (err) {
       showError('Не удалось применить настройки телеметрии: ' + err.message);
     } finally {
@@ -311,11 +352,18 @@
 
   // ---- процессы --------------------------------------------------------
   async function refreshProcesses() {
+    const btn = $('#processRefreshBtn');
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Обновление…';
     try {
       const procs = await call(window.neuroboost.process.list());
       renderProcessTable(procs.slice(0, 60));
     } catch (err) {
       showError('Не удалось получить список процессов: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
     }
   }
 
@@ -360,6 +408,8 @@
   function wireAutoBoost() {
     const toggle = $('#autoBoostToggle');
     toggle.addEventListener('click', async () => {
+      if (toggle.dataset.busy === '1') return;
+      toggle.dataset.busy = '1';
       try {
         if (!state.autoBoostRunning) {
           await call(window.neuroboost.process.autoBoostStart({ intervalMs: 8000 }));
@@ -372,6 +422,8 @@
         toggle.setAttribute('aria-pressed', String(state.autoBoostRunning));
       } catch (err) {
         showError('Не удалось переключить Автоускорение: ' + err.message);
+      } finally {
+        toggle.dataset.busy = '0';
       }
     });
 
@@ -401,6 +453,7 @@
     wireNav();
     wireTelemetryToggles();
     wireAutoBoost();
+    wireSelectAll();
 
     $('#debloatRemoveBtn').addEventListener('click', runDebloatRemoval);
     $('#telemetryApplyBtn').addEventListener('click', applyTelemetry);

@@ -1,9 +1,14 @@
 <#
   disable-telemetry.ps1
   Reduces Windows diagnostic data collection and optionally turns off
-  Cortana / Widgets / Copilot / Advertising ID. Before changing anything it
-  records the previous value of every key/service it touches and prints that
-  record as JSON, so enable-telemetry.ps1 can restore the exact prior state.
+  Cortana / Widgets / Copilot / Advertising ID.
+
+  Each change is applied independently inside its own try/catch: if one key
+  is blocked (e.g. by a security policy or a Windows build that has locked
+  it down), the rest still apply instead of the whole run failing. Output is
+  a JSON object: { backup: [...only the changes that actually succeeded...],
+  results: [...per-item outcome, for user-facing feedback...] }. Only
+  `backup` is used by enable-telemetry.ps1 to restore exact prior state.
 
   Deliberately NOT touched: Windows Update, Windows Defender/Security, and
   the firewall — this script only reduces telemetry, it does not weaken
@@ -42,53 +47,71 @@ function Set-RegValue {
 }
 
 $backup = New-Object System.Collections.Generic.List[object]
+$results = New-Object System.Collections.Generic.List[object]
+
+function Apply-RegChange {
+  param([string]$Label, [string]$Path, [string]$Name, $NewValue)
+  try {
+    $prev = Get-RegState $Path $Name
+    Set-RegValue $Path $Name $NewValue
+    $backup.Add($prev)
+    $results.Add([pscustomobject]@{ label = $Label; status = 'changed' })
+  }
+  catch {
+    $results.Add([pscustomobject]@{ label = $Label; status = 'failed'; error = $_.Exception.Message })
+  }
+}
 
 # 1. Core diagnostic data level (0 = Security/minimum; Home/Pro treat this the
 #    same as Basic since only Enterprise/Education fully honor "Security").
-$p1 = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection'
-$backup.Add((Get-RegState $p1 'AllowTelemetry'))
-Set-RegValue $p1 'AllowTelemetry' 0
+Apply-RegChange -Label 'Диагностические данные' `
+  -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name 'AllowTelemetry' -NewValue 0
 
 # 2. Advertising ID
 if ($DisableAdvertisingId) {
-  $p2 = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo'
-  $backup.Add((Get-RegState $p2 'Enabled'))
-  Set-RegValue $p2 'Enabled' 0
+  Apply-RegChange -Label 'Рекламный идентификатор' `
+    -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo' -Name 'Enabled' -NewValue 0
 }
 
 # 3. Cortana (Windows 10)
 if ($DisableCortana) {
-  $p3 = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search'
-  $backup.Add((Get-RegState $p3 'AllowCortana'))
-  Set-RegValue $p3 'AllowCortana' 0
+  Apply-RegChange -Label 'Кортана' `
+    -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' -Name 'AllowCortana' -NewValue 0
 }
 
 # 4. Widgets icon on the taskbar (Windows 11)
 if ($DisableWidgets) {
-  $p4 = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
-  $backup.Add((Get-RegState $p4 'TaskbarDa'))
-  Set-RegValue $p4 'TaskbarDa' 0
+  Apply-RegChange -Label 'Виджеты' `
+    -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'TaskbarDa' -NewValue 0
 }
 
 # 5. Copilot (Windows 11, 23H2+)
 if ($DisableCopilot) {
-  $p5 = 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot'
-  $backup.Add((Get-RegState $p5 'TurnOffWindowsCopilot'))
-  Set-RegValue $p5 'TurnOffWindowsCopilot' 1
+  Apply-RegChange -Label 'Copilot' `
+    -Path 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' -Name 'TurnOffWindowsCopilot' -NewValue 1
 }
 
 # 6. Telemetry services
 foreach ($svcName in @('DiagTrack', 'dmwappushservice')) {
-  $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
-  if ($svc) {
-    $cim = Get-CimInstance -ClassName Win32_Service -Filter "Name='$svcName'" -ErrorAction SilentlyContinue
-    $startType = if ($cim) { $cim.StartMode } else { 'Unknown' }
-    $backup.Add([pscustomobject]@{ path = "service:$svcName"; name = 'StartMode'; existed = $true; value = $startType })
-    Stop-Service -Name $svcName -Force -ErrorAction SilentlyContinue
-    Set-Service -Name $svcName -StartupType Disabled -ErrorAction SilentlyContinue
+  try {
+    $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+    if ($svc) {
+      $cim = Get-CimInstance -ClassName Win32_Service -Filter "Name='$svcName'" -ErrorAction SilentlyContinue
+      $startType = if ($cim) { $cim.StartMode } else { 'Unknown' }
+      Stop-Service -Name $svcName -Force -ErrorAction Stop
+      Set-Service -Name $svcName -StartupType Disabled -ErrorAction Stop
+      $backup.Add([pscustomobject]@{ path = "service:$svcName"; name = 'StartMode'; existed = $true; value = $startType })
+      $results.Add([pscustomobject]@{ label = "Служба $svcName"; status = 'changed' })
+    }
+  }
+  catch {
+    $results.Add([pscustomobject]@{ label = "Служба $svcName"; status = 'failed'; error = $_.Exception.Message })
   }
 }
 
-# Pass via -InputObject (never pipe a single-item collection into
-# ConvertTo-Json) so the result is always a JSON array, even with one entry.
-ConvertTo-Json -InputObject $backup -Compress -Depth 5
+$output = [pscustomobject]@{
+  backup  = $backup
+  results = $results
+}
+
+ConvertTo-Json -InputObject $output -Compress -Depth 6

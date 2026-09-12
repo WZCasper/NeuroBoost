@@ -77,15 +77,19 @@
         <section data-panel="debloat" class="flex flex-col gap-4" style="display:none">
           <div class="nb-card">
             <p class="text-[13px] leading-relaxed text-text-dim">
-              Удаляет только выбранные вами предустановленные приложения — оболочка ОС, Store и
-              Калькулятор никогда не предлагаются к удалению. Всё удалённое здесь можно в любой
-              момент установить заново из Microsoft Store.
+              Здесь показаны реальные приложения, установленные на этом компьютере. Системные
+              компоненты (оболочка, Store, Калькулятор и т.п.) исключены автоматически и никогда
+              не предлагаются к удалению. Всё удалённое здесь можно в любой момент установить
+              заново из Microsoft Store.
             </p>
           </div>
 
           <div class="nb-card">
             <div class="mb-2 flex items-center justify-between">
-              <div class="text-[13px] font-medium">Приложения</div>
+              <label class="flex items-center gap-2 text-[13px] font-medium">
+                <input type="checkbox" id="debloatSelectAll" class="h-4 w-4 accent-[#ff8a3d]" />
+                Выбрать всё
+              </label>
               <div class="text-[12px] text-text-dim">Выбрано: <span id="debloatSelectedCount">0</span></div>
             </div>
             <div id="debloatList" class="flex flex-col"></div>
@@ -177,13 +181,42 @@
             </div>
           </div>
 
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="nb-card">
+              <div class="text-[20px] leading-none">🧠</div>
+              <div class="mt-2 text-[13px] font-medium">Что это</div>
+              <p class="mt-1 text-[12px] leading-relaxed text-text-dim">
+                Windows держит часть недавно открытых файлов в оперативной памяти «про запас» —
+                это и есть список ожидания (standby list). Он помечен как «занятый», хотя прямо
+                сейчас ничем важным не используется.
+              </p>
+            </div>
+            <div class="nb-card">
+              <div class="text-[20px] leading-none">⚡</div>
+              <div class="mt-2 text-[13px] font-medium">Что делает очистка</div>
+              <p class="mt-1 text-[12px] leading-relaxed text-text-dim">
+                Кнопка ниже мгновенно освобождает эти страницы памяти, чтобы новая программа —
+                игра, рендер, тяжёлый редактор — могла сразу их занять, не дожидаясь, пока
+                Windows освободит место сама.
+              </p>
+            </div>
+            <div class="nb-card">
+              <div class="text-[20px] leading-none">🛡️</div>
+              <div class="mt-2 text-[13px] font-medium">Это безопасно</div>
+              <p class="mt-1 text-[12px] leading-relaxed text-text-dim">
+                ✅ Не закрывает программы<br />
+                ✅ Не трогает файл подкачки<br />
+                ✅ Не может привести к потере данных
+              </p>
+            </div>
+          </div>
+
           <div class="nb-card">
             <p class="text-[13px] leading-relaxed text-text-dim">
-              Очистка списка ожидания освобождает кэшированные страницы памяти, делая их
-              мгновенно доступными для повторного использования — это полезно перед запуском
-              требовательных к памяти задач. Windows уже считает страницы в списке ожидания
-              «доступной» памятью, поэтому не ждите резкого роста числа выше — эффект в более
-              быстром выделении памяти, а не в увеличении показателя свободной памяти.
+              📊 <span class="text-text">Честно о результате:</span> Windows и так считает эту
+              память «доступной» в диспетчере задач, поэтому число ниже может почти не измениться
+              — и это нормально. Эффект не в большем количестве свободных гигабайт, а в том, что
+              следующая тяжёлая программа запустится и начнёт работать чуть быстрее.
             </p>
           </div>
 

@@ -30,15 +30,25 @@ async function disableTelemetry(options = {}) {
   const scriptPath = path.join(scriptsDir(), 'disable-telemetry.ps1');
   const raw = await runPowerShellFile(scriptPath, args, 30000);
 
-  let backup;
+  let parsed;
   try {
-    backup = JSON.parse(raw.trim());
+    parsed = JSON.parse(raw.trim());
   } catch (err) {
     throw new Error('Telemetry script returned unexpected output: ' + err.message);
   }
 
-  fs.writeFileSync(backupFilePath(), JSON.stringify(backup, null, 2), 'utf8');
-  return { changed: Array.isArray(backup) ? backup.length : 0 };
+  const backup = Array.isArray(parsed.backup) ? parsed.backup : parsed.backup ? [parsed.backup] : [];
+  const results = Array.isArray(parsed.results) ? parsed.results : parsed.results ? [parsed.results] : [];
+
+  if (backup.length > 0) {
+    fs.writeFileSync(backupFilePath(), JSON.stringify(backup, null, 2), 'utf8');
+  }
+
+  return {
+    changed: results.filter((r) => r.status === 'changed').length,
+    failed: results.filter((r) => r.status === 'failed').length,
+    results
+  };
 }
 
 async function restoreTelemetry() {

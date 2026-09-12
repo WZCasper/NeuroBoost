@@ -1,39 +1,62 @@
 'use strict';
 
 const path = require('path');
-const os = require('os');
 const { runPowerShell, runPowerShellFile } = require('./powershell-runner');
 const { scriptsDir } = require('./paths');
 
-// Win32_PerfFormattedData_PerfProc_Process gives a pre-computed CPU% from
-// Windows' own performance counters (no manual two-sample delta needed).
-// Get-Process is merged in for PriorityClass and the executable path, since
-// the WMI class doesn't expose those. Both calls are cheap CIM/.NET calls —
-// intentionally NOT `wmic`, which Microsoft has deprecated and removed by
-// default starting with Windows 11 22H2+.
+// CPU% is computed from two Get-Process snapshots 400ms apart (classic
+// TotalProcessorTime delta), NOT from Win32_PerfFormattedData_PerfProc_Process.
+// The WMI performance-counter provider is a well-known source of multi-second
+// stalls (and outright hangs) on real-world machines whose perf counters are
+// stale or corrupted — Get-Process itself is a plain, fast .NET call with no
+// such dependency. Every per-process property read is wrapped in try/catch:
+// a handful of protected/system processes throw "Access is denied" on
+// .PriorityClass or .TotalProcessorTime even for an elevated caller, and one
+// such process must never take the whole listing down.
 const LIST_SCRIPT = `
-$perf = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process |
-  Where-Object { $_.IDProcess -ne 0 -and $_.Name -notin @('_Total','Idle') }
-$procs = Get-Process | Select-Object Id, ProcessName,
-  @{n='Priority';e={$_.PriorityClass}},
-  @{n='Path';e={ try { $_.Path } catch { $null } }}
-$byId = @{}
-foreach ($p in $procs) { $byId[$p.Id] = $p }
-$result = foreach ($row in $perf) {
-  $extra = $byId[[int]$row.IDProcess]
+$core = [Math]::Max([Environment]::ProcessorCount, 1)
+
+function Snapshot {
+  Get-Process | ForEach-Object {
+    try {
+      [pscustomobject]@{
+        Id = $_.Id
+        Name = $_.ProcessName
+        Cpu = $_.TotalProcessorTime
+        Mem = $_.WorkingSet64
+        Priority = $(try { $_.PriorityClass.ToString() } catch { $null })
+        Path = $(try { $_.Path } catch { $null })
+      }
+    } catch { $null }
+  } | Where-Object { $_ -ne $null }
+}
+
+$first = Snapshot
+Start-Sleep -Milliseconds 400
+$second = Snapshot
+
+$firstById = @{}
+foreach ($p in $first) { $firstById[$p.Id] = $p }
+
+$result = foreach ($p in $second) {
+  $prev = $firstById[$p.Id]
+  if (-not $prev) { continue }
+  $deltaMs = 0
+  try { $deltaMs = ($p.Cpu - $prev.Cpu).TotalMilliseconds } catch { $deltaMs = 0 }
+  $cpuPercent = if ($deltaMs -gt 0) { [Math]::Round(($deltaMs / 400.0) / $core * 100, 1) } else { 0 }
   [pscustomobject]@{
-    pid = [int]$row.IDProcess
-    name = if ($extra) { $extra.ProcessName } else { $row.Name }
-    cpuRaw = [double]$row.PercentProcessorTime
-    workingSetMB = [math]::Round($row.WorkingSet / 1MB, 1)
-    priority = if ($extra) { [string]$extra.Priority } else { $null }
-    path = if ($extra) { $extra.Path } else { $null }
+    pid = $p.Id
+    name = $p.Name
+    cpuPercent = $cpuPercent
+    workingSetMB = [Math]::Round($p.Mem / 1MB, 1)
+    priority = $p.Priority
+    path = $p.Path
   }
 }
+
 ConvertTo-Json -InputObject $result -Compress -Depth 4
 `;
 
-const CORE_COUNT = Math.max(os.cpus().length, 1);
 const ALLOWED_PRIORITIES = ['Idle', 'BelowNormal', 'Normal', 'AboveNormal', 'High'];
 
 // Executables treated as "heavy foreground" workloads worth boosting when
@@ -76,20 +99,36 @@ const DEPRIORITIZE_NAMES = new Set([
 let autoBoostTimer = null;
 let autoBoostAdjusted = new Map(); // pid -> priority we bumped it from
 
+// A manual "Refresh" click and auto-boost's own polling loop can land at the
+// same time; without this guard they'd spawn two concurrent powershell.exe
+// processes doing the same work. Any caller that arrives while a listing is
+// already running just awaits that same in-flight result instead.
+let inFlightList = null;
+
 async function listProcesses() {
-  const raw = await runPowerShell(LIST_SCRIPT, { timeoutMs: 15000 });
-  const rows = JSON.parse(raw.trim());
-  const arr = Array.isArray(rows) ? rows : [rows];
-  return arr
-    .map((r) => ({
-      pid: r.pid,
-      name: r.name,
-      cpuPercent: Math.min(100, +(r.cpuRaw / CORE_COUNT).toFixed(1)),
-      memoryMB: r.workingSetMB,
-      priority: r.priority || 'Normal',
-      path: r.path || null
-    }))
-    .sort((a, b) => b.cpuPercent - a.cpuPercent);
+  if (inFlightList) return inFlightList;
+
+  inFlightList = (async () => {
+    try {
+      const raw = await runPowerShell(LIST_SCRIPT, { timeoutMs: 12000 });
+      const rows = JSON.parse(raw.trim());
+      const arr = Array.isArray(rows) ? rows : [rows];
+      return arr
+        .map((r) => ({
+          pid: r.pid,
+          name: r.name,
+          cpuPercent: Math.min(100, +r.cpuPercent),
+          memoryMB: r.workingSetMB,
+          priority: r.priority || 'Normal',
+          path: r.path || null
+        }))
+        .sort((a, b) => b.cpuPercent - a.cpuPercent);
+    } finally {
+      inFlightList = null;
+    }
+  })();
+
+  return inFlightList;
 }
 
 async function setProcessPriority(pid, priority) {
