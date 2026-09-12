@@ -24,7 +24,7 @@ async function getSystemInfo() {
     return {
       platform: process.platform,
       supported: false,
-      message: 'NeuroBoost only supports Windows 10 and Windows 11.'
+      message: 'NeuroBoost поддерживает только Windows 10 и Windows 11.'
     };
   }
 

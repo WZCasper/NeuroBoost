@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
@@ -12,162 +12,163 @@
     <aside class="flex w-56 shrink-0 flex-col border-r border-border bg-panel">
       <div class="border-b border-border px-5 py-5">
         <div class="font-display text-[15px] font-semibold tracking-tight">NeuroBoost</div>
-        <div class="mt-0.5 text-[11px] text-text-dim">System optimizer</div>
+        <div class="mt-0.5 text-[11px] text-text-dim">Оптимизатор системы</div>
       </div>
       <nav class="flex flex-1 flex-col gap-1 px-3 py-4" id="nav">
-        <button class="nb-nav-item is-active" data-view="overview" type="button">Overview</button>
-        <button class="nb-nav-item" data-view="debloat" type="button">Debloat</button>
-        <button class="nb-nav-item" data-view="telemetry" type="button">Telemetry</button>
-        <button class="nb-nav-item" data-view="ram" type="button">RAM</button>
-        <button class="nb-nav-item" data-view="processes" type="button">Processes</button>
+        <button class="nb-nav-item is-active" data-view="overview" type="button">Обзор</button>
+        <button class="nb-nav-item" data-view="debloat" type="button">Приложения</button>
+        <button class="nb-nav-item" data-view="telemetry" type="button">Телеметрия</button>
+        <button class="nb-nav-item" data-view="ram" type="button">Память</button>
+        <button class="nb-nav-item" data-view="processes" type="button">Процессы</button>
       </nav>
       <div class="border-t border-border px-5 py-4 text-[11px] leading-relaxed text-text-dim">
-        Free &amp; open-source. Every action runs locally — nothing leaves this machine.
+        Бесплатно и с открытым исходным кодом. Все действия выполняются локально — ничего не отправляется с этого компьютера.
       </div>
     </aside>
 
     <div class="flex min-w-0 flex-1 flex-col">
       <header class="flex items-center justify-between border-b border-border bg-panel px-6 py-3">
-        <div class="text-[13px] text-text-dim" id="viewTitle">Overview</div>
+        <div class="text-[13px] text-text-dim" id="viewTitle">Обзор</div>
         <div class="flex items-center gap-2">
-          <span class="nb-pill nb-pill-neutral nb-mono" id="osPill">detecting OS…</span>
-          <span class="nb-pill nb-pill-neutral" id="adminPill">checking rights…</span>
+          <span class="nb-pill nb-pill-neutral nb-mono" id="osPill">определение ОС…</span>
+          <span class="nb-pill nb-pill-neutral" id="adminPill">проверка прав…</span>
         </div>
       </header>
 
       <main class="flex-1 overflow-y-auto p-6">
 
-        <!-- ============ OVERVIEW ============ -->
+        <!-- ============ ОБЗОР ============ -->
         <section data-panel="overview" class="flex flex-col gap-5">
           <div class="nb-card">
             <div class="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <div class="text-[11px] uppercase tracking-wide text-text-dim">Detected system</div>
+                <div class="text-[11px] uppercase tracking-wide text-text-dim">Обнаруженная система</div>
                 <div class="font-display text-2xl font-semibold" id="ovOsName">—</div>
               </div>
               <dl class="grid grid-cols-2 gap-x-8 gap-y-1 text-[12px] sm:grid-cols-4">
-                <div><dt class="text-text-dim">Build</dt><dd class="nb-mono" id="ovBuild">—</dd></div>
-                <div><dt class="text-text-dim">Edition</dt><dd id="ovEdition">—</dd></div>
-                <div><dt class="text-text-dim">Architecture</dt><dd class="nb-mono" id="ovArch">—</dd></div>
-                <div><dt class="text-text-dim">Memory</dt><dd class="nb-mono" id="ovMem">—</dd></div>
+                <div><dt class="text-text-dim">Сборка</dt><dd class="nb-mono" id="ovBuild">—</dd></div>
+                <div><dt class="text-text-dim">Редакция</dt><dd id="ovEdition">—</dd></div>
+                <div><dt class="text-text-dim">Архитектура</dt><dd class="nb-mono" id="ovArch">—</dd></div>
+                <div><dt class="text-text-dim">Память</dt><dd class="nb-mono" id="ovMem">—</dd></div>
               </dl>
             </div>
           </div>
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <button class="nb-card text-left transition-colors hover:border-accent-dim" data-jump="debloat" type="button">
-              <div class="text-[11px] uppercase tracking-wide text-text-dim">Debloat</div>
-              <div class="mt-1 font-display text-lg" id="ovDebloatCount">— removable apps</div>
-              <div class="mt-1 text-[12px] text-text-dim">Curated, reversible, whitelisted</div>
+              <div class="text-[11px] uppercase tracking-wide text-text-dim">Приложения</div>
+              <div class="mt-1 font-display text-lg" id="ovDebloatCount">— приложений для удаления</div>
+              <div class="mt-1 text-[12px] text-text-dim">Проверенный список, обратимо</div>
             </button>
             <button class="nb-card text-left transition-colors hover:border-accent-dim" data-jump="telemetry" type="button">
-              <div class="text-[11px] uppercase tracking-wide text-text-dim">Telemetry</div>
-              <div class="mt-1 font-display text-lg" id="ovTelemetryStatus">Not customized</div>
-              <div class="mt-1 text-[12px] text-text-dim">Fully reversible in one click</div>
+              <div class="text-[11px] uppercase tracking-wide text-text-dim">Телеметрия</div>
+              <div class="mt-1 font-display text-lg" id="ovTelemetryStatus">Не настроено</div>
+              <div class="mt-1 text-[12px] text-text-dim">Полностью обратимо в один клик</div>
             </button>
             <button class="nb-card text-left transition-colors hover:border-accent-dim" data-jump="ram" type="button">
-              <div class="text-[11px] uppercase tracking-wide text-text-dim">Memory</div>
-              <div class="mt-1 font-display text-lg" id="ovRamUsed">— % used</div>
-              <div class="mt-1 text-[12px] text-text-dim">Standby list cleaner</div>
+              <div class="text-[11px] uppercase tracking-wide text-text-dim">Память</div>
+              <div class="mt-1 font-display text-lg" id="ovRamUsed">— % занято</div>
+              <div class="mt-1 text-[12px] text-text-dim">Очистка списка ожидания</div>
             </button>
           </div>
         </section>
 
-        <!-- ============ DEBLOAT ============ -->
+        <!-- ============ ПРИЛОЖЕНИЯ (DEBLOAT) ============ -->
         <section data-panel="debloat" class="flex flex-col gap-4" style="display:none">
           <div class="nb-card">
             <p class="text-[13px] leading-relaxed text-text-dim">
-              Removes bundled apps you select — not the OS shell, Store, or Calculator, which
-              are never offered. Anything removed here can be reinstalled from the Microsoft
-              Store at any time.
+              Удаляет только выбранные вами предустановленные приложения — оболочка ОС, Store и
+              Калькулятор никогда не предлагаются к удалению. Всё удалённое здесь можно в любой
+              момент установить заново из Microsoft Store.
             </p>
           </div>
 
           <div class="nb-card">
             <div class="mb-2 flex items-center justify-between">
-              <div class="text-[13px] font-medium">Apps</div>
-              <div class="text-[12px] text-text-dim"><span id="debloatSelectedCount">0</span> selected</div>
+              <div class="text-[13px] font-medium">Приложения</div>
+              <div class="text-[12px] text-text-dim">Выбрано: <span id="debloatSelectedCount">0</span></div>
             </div>
             <div id="debloatList" class="flex flex-col"></div>
           </div>
 
           <div class="flex items-center gap-3">
-            <button class="nb-btn-primary" id="debloatRemoveBtn" type="button" disabled>Remove selected</button>
-            <span class="text-[12px] text-text-dim" id="debloatHint">Select at least one app</span>
+            <button class="nb-btn-primary" id="debloatRemoveBtn" type="button" disabled>Удалить выбранное</button>
+            <span class="text-[12px] text-text-dim" id="debloatHint">Выберите хотя бы одно приложение</span>
           </div>
 
           <div class="nb-card hidden" id="debloatProgressCard">
-            <div class="mb-2 text-[13px] font-medium">Progress</div>
+            <div class="mb-2 text-[13px] font-medium">Ход выполнения</div>
             <div id="debloatProgress" class="flex flex-col gap-1.5 text-[12px]"></div>
           </div>
         </section>
 
-        <!-- ============ TELEMETRY ============ -->
+        <!-- ============ ТЕЛЕМЕТРИЯ ============ -->
         <section data-panel="telemetry" class="flex flex-col gap-4" style="display:none">
           <div class="nb-card">
             <p class="text-[13px] leading-relaxed text-text-dim">
-              Reduces Windows diagnostic data collection. Windows Update, Windows Security, and
-              the firewall are never touched by NeuroBoost. Every change is recorded before it's
-              applied, so <span class="text-text">Restore defaults</span> puts this machine back
-              exactly how it was.
+              Уменьшает объём диагностических данных, собираемых Windows. Центр обновления
+              Windows, защитник Windows и брандмауэр этим приложением никогда не затрагиваются.
+              Каждое изменение фиксируется до применения, поэтому кнопка
+              <span class="text-text">«Восстановить по умолчанию»</span> вернёт систему точно в
+              прежнее состояние.
             </p>
           </div>
 
           <div class="nb-card">
             <div class="nb-row">
               <div>
-                <div class="text-[13px]">Diagnostic data (core)</div>
-                <div class="text-[12px] text-text-dim">Sets telemetry collection to its minimum level</div>
+                <div class="text-[13px]">Диагностические данные (основные)</div>
+                <div class="text-[12px] text-text-dim">Устанавливает минимальный уровень сбора телеметрии</div>
               </div>
-              <span class="nb-pill nb-pill-safe">always included</span>
+              <span class="nb-pill nb-pill-safe">всегда включено</span>
             </div>
             <div class="nb-row">
               <div>
-                <div class="text-[13px]">Advertising ID</div>
-                <div class="text-[12px] text-text-dim">Stops apps from using your ad ID for personalization</div>
+                <div class="text-[13px]">Рекламный идентификатор</div>
+                <div class="text-[12px] text-text-dim">Запрещает приложениям использовать ваш рекламный ID для персонализации</div>
               </div>
               <button class="nb-toggle" data-toggle="disableAdvertisingId" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
             </div>
             <div class="nb-row" data-feature="cortanaRemovable">
               <div>
-                <div class="text-[13px]">Cortana</div>
-                <div class="text-[12px] text-text-dim">Windows 10 — disables Cortana via policy</div>
+                <div class="text-[13px]">Кортана</div>
+                <div class="text-[12px] text-text-dim">Windows 10 — отключает Кортану через политику</div>
               </div>
               <button class="nb-toggle" data-toggle="disableCortana" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
             </div>
             <div class="nb-row" data-feature="widgetsToggle">
               <div>
-                <div class="text-[13px]">Widgets</div>
-                <div class="text-[12px] text-text-dim">Windows 11 — hides the taskbar Widgets icon</div>
+                <div class="text-[13px]">Виджеты</div>
+                <div class="text-[12px] text-text-dim">Windows 11 — скрывает значок виджетов на панели задач</div>
               </div>
               <button class="nb-toggle" data-toggle="disableWidgets" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
             </div>
             <div class="nb-row" data-feature="copilotToggle">
               <div>
                 <div class="text-[13px]">Copilot</div>
-                <div class="text-[12px] text-text-dim">Windows 11 23H2+ — turns off Windows Copilot</div>
+                <div class="text-[12px] text-text-dim">Windows 11 23H2+ — отключает Windows Copilot</div>
               </div>
               <button class="nb-toggle" data-toggle="disableCopilot" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
             </div>
           </div>
 
           <div class="flex items-center gap-3">
-            <button class="nb-btn-primary" id="telemetryApplyBtn" type="button">Apply protections</button>
-            <button class="nb-btn-danger" id="telemetryRestoreBtn" type="button" disabled>Restore defaults</button>
-            <span class="text-[12px] text-text-dim" id="telemetryStatusText">Not customized</span>
+            <button class="nb-btn-primary" id="telemetryApplyBtn" type="button">Применить</button>
+            <button class="nb-btn-danger" id="telemetryRestoreBtn" type="button" disabled>Восстановить по умолчанию</button>
+            <span class="text-[12px] text-text-dim" id="telemetryStatusText">Не настроено</span>
           </div>
         </section>
 
-        <!-- ============ RAM ============ -->
+        <!-- ============ ПАМЯТЬ (RAM) ============ -->
         <section data-panel="ram" class="flex flex-col gap-4" style="display:none">
           <div class="nb-card">
             <div class="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <div class="text-[11px] uppercase tracking-wide text-text-dim">Physical memory</div>
-                <div class="font-display text-2xl font-semibold nb-mono"><span id="ramUsedGB">—</span> / <span id="ramTotalGB">—</span> GB</div>
+                <div class="text-[11px] uppercase tracking-wide text-text-dim">Физическая память</div>
+                <div class="font-display text-2xl font-semibold nb-mono"><span id="ramUsedGB">—</span> / <span id="ramTotalGB">—</span> ГБ</div>
               </div>
               <div class="text-right">
-                <div class="text-[11px] uppercase tracking-wide text-text-dim">Used</div>
+                <div class="text-[11px] uppercase tracking-wide text-text-dim">Занято</div>
                 <div class="font-display text-2xl font-semibold nb-mono" id="ramPercent">—%</div>
               </div>
             </div>
@@ -178,45 +179,46 @@
 
           <div class="nb-card">
             <p class="text-[13px] leading-relaxed text-text-dim">
-              Purging the standby list frees cached, reclaimable pages so they're instantly
-              reusable — useful right before launching something memory-hungry. Windows already
-              counts standby pages as "available" memory, so don't expect a dramatic jump in the
-              number above; the benefit is faster allocation, not a bigger free-memory figure.
+              Очистка списка ожидания освобождает кэшированные страницы памяти, делая их
+              мгновенно доступными для повторного использования — это полезно перед запуском
+              требовательных к памяти задач. Windows уже считает страницы в списке ожидания
+              «доступной» памятью, поэтому не ждите резкого роста числа выше — эффект в более
+              быстром выделении памяти, а не в увеличении показателя свободной памяти.
             </p>
           </div>
 
           <div class="flex items-center gap-3">
-            <button class="nb-btn-primary" id="ramPurgeBtn" type="button">Purge standby list</button>
+            <button class="nb-btn-primary" id="ramPurgeBtn" type="button">Очистить список ожидания</button>
             <span class="text-[12px] text-text-dim" id="ramStatusText"></span>
           </div>
         </section>
 
-        <!-- ============ PROCESSES ============ -->
+        <!-- ============ ПРОЦЕССЫ ============ -->
         <section data-panel="processes" class="flex flex-col gap-4" style="display:none">
           <div class="nb-card">
             <div class="nb-row">
               <div>
-                <div class="text-[13px]">Auto-Boost</div>
-                <div class="text-[12px] text-text-dim">Raises priority for known heavy apps (games, OBS, renderers) and gently lowers known background apps while one is running</div>
+                <div class="text-[13px]">Автоускорение</div>
+                <div class="text-[12px] text-text-dim">Повышает приоритет известным ресурсоёмким приложениям (игры, OBS, рендеринг) и мягко понижает приоритет фоновых приложений, пока одно из них запущено</div>
               </div>
               <button class="nb-toggle" id="autoBoostToggle" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
             </div>
           </div>
 
           <div class="flex items-center justify-between">
-            <div class="text-[13px] font-medium">Running processes</div>
-            <button class="nb-btn" id="processRefreshBtn" type="button">Refresh</button>
+            <div class="text-[13px] font-medium">Запущенные процессы</div>
+            <button class="nb-btn" id="processRefreshBtn" type="button">Обновить</button>
           </div>
 
           <div class="nb-card overflow-x-auto p-0">
             <table class="w-full min-w-[640px] text-left text-[12px]">
               <thead>
                 <tr class="border-b border-border text-text-dim">
-                  <th class="px-4 py-2.5 font-medium">Process</th>
+                  <th class="px-4 py-2.5 font-medium">Процесс</th>
                   <th class="px-4 py-2.5 font-medium">PID</th>
-                  <th class="px-4 py-2.5 font-medium">CPU</th>
-                  <th class="px-4 py-2.5 font-medium">Memory</th>
-                  <th class="px-4 py-2.5 font-medium">Priority</th>
+                  <th class="px-4 py-2.5 font-medium">ЦП</th>
+                  <th class="px-4 py-2.5 font-medium">Память</th>
+                  <th class="px-4 py-2.5 font-medium">Приоритет</th>
                 </tr>
               </thead>
               <tbody id="processTableBody"></tbody>

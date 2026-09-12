@@ -9,23 +9,23 @@ const { scriptsDir } = require('./paths');
 // arbitrary package name into a PowerShell call.
 const CATALOG = [
   { id: 'threedbuilder', name: '3D Builder', pkg: 'Microsoft.3DBuilder', risk: 'safe' },
-  { id: 'mixedreality', name: 'Mixed Reality Portal', pkg: 'Microsoft.MixedReality.Portal', risk: 'safe' },
-  { id: 'bingweather', name: 'Weather (Bing)', pkg: 'Microsoft.BingWeather', risk: 'safe' },
-  { id: 'bingnews', name: 'News (Bing / MSN)', pkg: 'Microsoft.BingNews', risk: 'safe' },
-  { id: 'getstarted', name: 'Tips / Get Started', pkg: 'Microsoft.Getstarted', risk: 'safe' },
-  { id: 'officehub', name: 'Office Hub (My Office)', pkg: 'Microsoft.MicrosoftOfficeHub', risk: 'safe' },
-  { id: 'solitaire', name: 'Microsoft Solitaire Collection', pkg: 'Microsoft.MicrosoftSolitaireCollection', risk: 'safe' },
-  { id: 'people', name: 'People', pkg: 'Microsoft.People', risk: 'safe' },
-  { id: 'feedbackhub', name: 'Feedback Hub', pkg: 'Microsoft.WindowsFeedbackHub', risk: 'safe' },
-  { id: 'zunemusic', name: 'Groove Music', pkg: 'Microsoft.ZuneMusic', risk: 'safe' },
-  { id: 'zunevideo', name: 'Movies & TV', pkg: 'Microsoft.ZuneVideo', risk: 'safe' },
+  { id: 'mixedreality', name: 'Смешанная реальность (Mixed Reality Portal)', pkg: 'Microsoft.MixedReality.Portal', risk: 'safe' },
+  { id: 'bingweather', name: 'Погода', pkg: 'Microsoft.BingWeather', risk: 'safe' },
+  { id: 'bingnews', name: 'Новости', pkg: 'Microsoft.BingNews', risk: 'safe' },
+  { id: 'getstarted', name: 'Советы / Приступая к работе', pkg: 'Microsoft.Getstarted', risk: 'safe' },
+  { id: 'officehub', name: 'Мой Office (Office Hub)', pkg: 'Microsoft.MicrosoftOfficeHub', risk: 'safe' },
+  { id: 'solitaire', name: 'Microsoft Solitaire Collection (пасьянсы)', pkg: 'Microsoft.MicrosoftSolitaireCollection', risk: 'safe' },
+  { id: 'people', name: 'Люди', pkg: 'Microsoft.People', risk: 'safe' },
+  { id: 'feedbackhub', name: 'Центр отзывов', pkg: 'Microsoft.WindowsFeedbackHub', risk: 'safe' },
+  { id: 'zunemusic', name: 'Groove Музыка', pkg: 'Microsoft.ZuneMusic', risk: 'safe' },
+  { id: 'zunevideo', name: 'Кино и ТВ', pkg: 'Microsoft.ZuneVideo', risk: 'safe' },
   { id: 'skypeapp', name: 'Skype (UWP)', pkg: 'Microsoft.SkypeApp', risk: 'safe' },
   { id: 'poweraut', name: 'Power Automate Desktop', pkg: 'Microsoft.PowerAutomateDesktop', risk: 'safe' },
   { id: 'clipchamp', name: 'Clipchamp', pkg: 'Clipchamp.Clipchamp', risk: 'safe' },
-  { id: 'xboxoverlay', name: 'Xbox Game Bar', pkg: 'Microsoft.XboxGamingOverlay', risk: 'optional' },
-  { id: 'xboxapp', name: 'Xbox App / Console Companion', pkg: 'Microsoft.GamingApp', risk: 'optional' },
-  { id: 'yourphone', name: 'Phone Link (Your Phone)', pkg: 'Microsoft.YourPhone', risk: 'optional' },
-  { id: 'cortana', name: 'Cortana', pkg: 'Microsoft.549981C3F5F10', risk: 'optional', win10Only: true }
+  { id: 'xboxoverlay', name: 'Игровая панель Xbox (Game Bar)', pkg: 'Microsoft.XboxGamingOverlay', risk: 'optional' },
+  { id: 'xboxapp', name: 'Приложение Xbox', pkg: 'Microsoft.GamingApp', risk: 'optional' },
+  { id: 'yourphone', name: 'Связь с телефоном (Phone Link)', pkg: 'Microsoft.YourPhone', risk: 'optional' },
+  { id: 'cortana', name: 'Кортана', pkg: 'Microsoft.549981C3F5F10', risk: 'optional', win10Only: true }
 ];
 
 // Hard block, checked even if a bad id somehow reaches this function —

@@ -16,7 +16,19 @@
     autoBoostRunning: false
   };
 
-  // ---- small helpers --------------------------------------------------
+  // Приоритеты передаются в backend/PowerShell как есть (System.Diagnostics.
+  // ProcessPriorityClass), поэтому value остаётся английским — переводим
+  // только то, что видит пользователь.
+  const PRIORITY_LABELS = {
+    Idle: 'Простой',
+    BelowNormal: 'Ниже среднего',
+    Normal: 'Обычный',
+    AboveNormal: 'Выше среднего',
+    High: 'Высокий'
+  };
+  const PRIORITY_ORDER = ['Idle', 'BelowNormal', 'Normal', 'AboveNormal', 'High'];
+
+  // ---- маленькие помощники --------------------------------------------------
   function $(sel, root) {
     return (root || document).querySelector(sel);
   }
@@ -27,7 +39,7 @@
   async function call(promise) {
     const result = await promise;
     if (!result || result.ok !== true) {
-      throw new Error((result && result.error) || 'Unknown error');
+      throw new Error((result && result.error) || 'Неизвестная ошибка');
     }
     return result.data;
   }
@@ -36,7 +48,7 @@
   function showError(err) {
     const toast = $('#toast');
     const msg = $('#toastMessage');
-    msg.textContent = typeof err === 'string' ? err : err.message || 'Something went wrong.';
+    msg.textContent = typeof err === 'string' ? err : err.message || 'Что-то пошло не так.';
     toast.style.display = 'flex';
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
@@ -44,7 +56,7 @@
     }, 5000);
   }
 
-  // ---- navigation -------------------------------------------------------
+  // ---- навигация -------------------------------------------------------
   function switchView(view) {
     state.view = view;
     $all('[data-panel]').forEach((panel) => {
@@ -53,18 +65,18 @@
     $all('.nb-nav-item').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.view === view);
     });
-    $('#viewTitle').textContent = btn_label(view);
+    $('#viewTitle').textContent = viewLabel(view);
 
     if (view === 'processes') refreshProcesses();
   }
 
-  function btn_label(view) {
+  function viewLabel(view) {
     const labels = {
-      overview: 'Overview',
-      debloat: 'Debloat',
-      telemetry: 'Telemetry',
-      ram: 'RAM',
-      processes: 'Processes'
+      overview: 'Обзор',
+      debloat: 'Приложения',
+      telemetry: 'Телеметрия',
+      ram: 'Память',
+      processes: 'Процессы'
     };
     return labels[view] || view;
   }
@@ -78,29 +90,29 @@
     });
   }
 
-  // ---- system info --------------------------------------------------
+  // ---- информация о системе --------------------------------------------------
   async function loadSystemInfo() {
     try {
       const info = await call(window.neuroboost.system.getInfo());
       state.systemInfo = info;
       renderSystemInfo(info);
     } catch (err) {
-      showError('Could not read system info: ' + err.message);
+      showError('Не удалось получить информацию о системе: ' + err.message);
     }
 
     try {
       const elevated = await call(window.neuroboost.system.isElevated());
       const pill = $('#adminPill');
-      pill.textContent = elevated ? 'Administrator' : 'Not elevated';
+      pill.textContent = elevated ? 'Администратор' : 'Без повышенных прав';
       pill.className = 'nb-pill ' + (elevated ? 'nb-pill-safe' : 'nb-pill-optional');
     } catch (_) {
-      /* leave the default pill text if this fails */
+      /* оставляем текст плашки по умолчанию, если запрос не удался */
     }
   }
 
   function renderSystemInfo(info) {
     if (!info || !info.supported) {
-      $('#osPill').textContent = (info && info.message) || 'Unsupported OS';
+      $('#osPill').textContent = (info && info.message) || 'ОС не поддерживается';
       return;
     }
 
@@ -109,10 +121,10 @@
     $('#ovBuild').textContent = info.fullBuild;
     $('#ovEdition').textContent = info.productName || info.osName;
     $('#ovArch').textContent = info.architecture;
-    $('#ovMem').textContent = info.totalMemoryGB + ' GB';
+    $('#ovMem').textContent = info.totalMemoryGB + ' ГБ';
 
-    // OS-adaptive telemetry rows: only show Cortana on Windows 10, only show
-    // Widgets / Copilot on the Windows 11 builds that actually have them.
+    // Адаптация под ОС: Кортана — только на Windows 10, Виджеты/Copilot —
+    // только на тех сборках Windows 11, где они реально есть.
     toggleFeatureRow('cortanaRemovable', info.features.cortanaRemovable);
     toggleFeatureRow('widgetsToggle', info.features.widgetsToggle);
     toggleFeatureRow('copilotToggle', info.features.copilotToggle);
@@ -124,15 +136,15 @@
     });
   }
 
-  // ---- debloat --------------------------------------------------------
+  // ---- приложения (debloat) --------------------------------------------------
   async function loadDebloatCatalog() {
     try {
       const catalog = await call(window.neuroboost.debloat.list());
       state.debloatCatalog = catalog;
       renderDebloatList();
-      $('#ovDebloatCount').textContent = catalog.length + ' removable apps';
+      $('#ovDebloatCount').textContent = catalog.length + ' приложений для удаления';
     } catch (err) {
-      showError('Could not load the app list: ' + err.message);
+      showError('Не удалось загрузить список приложений: ' + err.message);
     }
   }
 
@@ -142,7 +154,7 @@
     list.innerHTML = '';
 
     state.debloatCatalog
-      .filter((app) => !(app.win10Only && isWin11)) // e.g. hide Cortana on Windows 11
+      .filter((app) => !(app.win10Only && isWin11)) // например, скрыть Кортану на Windows 11
       .forEach((app) => {
         const row = document.createElement('label');
         row.className = 'nb-row cursor-pointer';
@@ -152,7 +164,7 @@
           '<span class="text-[13px]">' + escapeHtml(app.name) + '</span>' +
           '</span>' +
           '<span class="nb-pill ' + (app.risk === 'safe' ? 'nb-pill-safe' : 'nb-pill-optional') + '">' +
-          app.risk +
+          (app.risk === 'safe' ? 'безопасно' : 'опционально') +
           '</span>';
         list.appendChild(row);
       });
@@ -170,7 +182,7 @@
     const count = state.debloatSelected.size;
     $('#debloatSelectedCount').textContent = String(count);
     $('#debloatRemoveBtn').disabled = count === 0;
-    $('#debloatHint').textContent = count === 0 ? 'Select at least one app' : count + ' app(s) ready to remove';
+    $('#debloatHint').textContent = count === 0 ? 'Выберите хотя бы одно приложение' : 'Готово к удалению: ' + count;
   }
 
   async function runDebloatRemoval() {
@@ -188,7 +200,7 @@
       const results = await call(window.neuroboost.debloat.remove(ids));
       results.forEach((r) => appendDebloatProgress(r));
     } catch (err) {
-      showError('Debloat run failed: ' + err.message);
+      showError('Ошибка при удалении приложений: ' + err.message);
     } finally {
       btn.disabled = state.debloatSelected.size === 0;
     }
@@ -197,7 +209,7 @@
   function appendDebloatProgress(entry) {
     const el = document.createElement('div');
     const color = entry.status === 'removed' ? 'text-good' : entry.status === 'failed' ? 'text-danger' : 'text-text-dim';
-    const label = entry.status === 'removed' ? 'removed' : entry.status === 'failed' ? 'failed' : 'removing…';
+    const label = entry.status === 'removed' ? 'удалено' : entry.status === 'failed' ? 'ошибка' : 'удаление…';
     el.className = color;
     el.textContent = entry.name + ' — ' + label + (entry.error ? ' (' + entry.error + ')' : '');
     el.dataset.appId = entry.id;
@@ -207,7 +219,7 @@
     else $('#debloatProgress').appendChild(el);
   }
 
-  // ---- telemetry --------------------------------------------------------
+  // ---- телеметрия --------------------------------------------------------
   function wireTelemetryToggles() {
     $all('[data-toggle]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -225,14 +237,14 @@
       state.telemetryCustomized = status.customized;
       renderTelemetryStatus();
     } catch (err) {
-      showError('Could not read telemetry status: ' + err.message);
+      showError('Не удалось получить статус телеметрии: ' + err.message);
     }
   }
 
   function renderTelemetryStatus() {
-    $('#telemetryStatusText').textContent = state.telemetryCustomized ? 'Customized' : 'Not customized';
+    $('#telemetryStatusText').textContent = state.telemetryCustomized ? 'Настроено' : 'Не настроено';
     $('#telemetryRestoreBtn').disabled = !state.telemetryCustomized;
-    $('#ovTelemetryStatus').textContent = state.telemetryCustomized ? 'Customized' : 'Not customized';
+    $('#ovTelemetryStatus').textContent = state.telemetryCustomized ? 'Настроено' : 'Не настроено';
   }
 
   async function applyTelemetry() {
@@ -242,9 +254,9 @@
       const result = await call(window.neuroboost.telemetry.disable(state.telemetryOptions));
       state.telemetryCustomized = true;
       renderTelemetryStatus();
-      $('#telemetryStatusText').textContent = 'Customized · ' + result.changed + ' value(s) changed';
+      $('#telemetryStatusText').textContent = 'Настроено · изменено значений: ' + result.changed;
     } catch (err) {
-      showError('Could not apply telemetry protections: ' + err.message);
+      showError('Не удалось применить настройки телеметрии: ' + err.message);
     } finally {
       btn.disabled = false;
     }
@@ -258,18 +270,18 @@
       state.telemetryCustomized = false;
       renderTelemetryStatus();
     } catch (err) {
-      showError('Could not restore telemetry defaults: ' + err.message);
+      showError('Не удалось восстановить настройки телеметрии: ' + err.message);
       btn.disabled = !state.telemetryCustomized;
     }
   }
 
-  // ---- RAM --------------------------------------------------------------
+  // ---- память (RAM) --------------------------------------------------------------
   async function loadMemoryInfo() {
     try {
       const info = await call(window.neuroboost.ram.info());
       renderMemoryInfo(info);
     } catch (err) {
-      showError('Could not read memory info: ' + err.message);
+      showError('Не удалось получить данные о памяти: ' + err.message);
     }
   }
 
@@ -278,53 +290,52 @@
     $('#ramTotalGB').textContent = info.totalGB.toFixed(1);
     $('#ramPercent').textContent = info.usedPercent.toFixed(0) + '%';
     $('#ramBar').style.width = Math.min(100, info.usedPercent) + '%';
-    $('#ovRamUsed').textContent = info.usedPercent.toFixed(0) + '% used';
+    $('#ovRamUsed').textContent = info.usedPercent.toFixed(0) + '% занято';
   }
 
   async function purgeStandbyList() {
     const btn = $('#ramPurgeBtn');
     btn.disabled = true;
-    $('#ramStatusText').textContent = 'Purging…';
+    $('#ramStatusText').textContent = 'Очистка…';
     try {
       const info = await call(window.neuroboost.ram.purge());
       renderMemoryInfo(info);
-      $('#ramStatusText').textContent = 'Done';
+      $('#ramStatusText').textContent = 'Готово';
     } catch (err) {
       $('#ramStatusText').textContent = '';
-      showError('Could not purge the standby list: ' + err.message);
+      showError('Не удалось очистить список ожидания: ' + err.message);
     } finally {
       btn.disabled = false;
     }
   }
 
-  // ---- processes --------------------------------------------------------
+  // ---- процессы --------------------------------------------------------
   async function refreshProcesses() {
     try {
       const procs = await call(window.neuroboost.process.list());
       renderProcessTable(procs.slice(0, 60));
     } catch (err) {
-      showError('Could not list processes: ' + err.message);
+      showError('Не удалось получить список процессов: ' + err.message);
     }
   }
 
   function renderProcessTable(procs) {
     const body = $('#processTableBody');
     body.innerHTML = '';
-    const priorities = ['Idle', 'BelowNormal', 'Normal', 'AboveNormal', 'High'];
 
     procs.forEach((p) => {
       const tr = document.createElement('tr');
       tr.className = 'border-b border-border last:border-b-0';
 
-      const options = priorities
-        .map((pr) => '<option value="' + pr + '"' + (pr === p.priority ? ' selected' : '') + '>' + pr + '</option>')
+      const options = PRIORITY_ORDER
+        .map((pr) => '<option value="' + pr + '"' + (pr === p.priority ? ' selected' : '') + '>' + PRIORITY_LABELS[pr] + '</option>')
         .join('');
 
       tr.innerHTML =
         '<td class="px-4 py-2">' + escapeHtml(p.name) + '</td>' +
         '<td class="px-4 py-2 nb-mono text-text-dim">' + p.pid + '</td>' +
         '<td class="px-4 py-2 nb-mono">' + p.cpuPercent.toFixed(1) + '%</td>' +
-        '<td class="px-4 py-2 nb-mono">' + p.memoryMB.toFixed(0) + ' MB</td>' +
+        '<td class="px-4 py-2 nb-mono">' + p.memoryMB.toFixed(0) + ' МБ</td>' +
         '<td class="px-4 py-2">' +
         '<select data-pid="' + p.pid + '" class="rounded-sm border border-border bg-panel-2 px-2 py-1 text-[12px]">' +
         options +
@@ -340,7 +351,7 @@
         try {
           await call(window.neuroboost.process.setPriority(pid, priority));
         } catch (err) {
-          showError('Could not change priority: ' + err.message);
+          showError('Не удалось изменить приоритет: ' + err.message);
         }
       });
     });
@@ -360,7 +371,7 @@
         toggle.classList.toggle('is-on', state.autoBoostRunning);
         toggle.setAttribute('aria-pressed', String(state.autoBoostRunning));
       } catch (err) {
-        showError('Could not toggle Auto-Boost: ' + err.message);
+        showError('Не удалось переключить Автоускорение: ' + err.message);
       }
     });
 
@@ -369,7 +380,7 @@
       const line = document.createElement('div');
       const time = new Date().toLocaleTimeString();
       if (event.type === 'boosted') {
-        line.textContent = '[' + time + '] Boosted ' + event.name + ' (PID ' + event.pid + ') to High';
+        line.textContent = '[' + time + '] Повышен приоритет: ' + event.name + ' (PID ' + event.pid + ') → Высокий';
       } else if (event.type === 'error') {
         line.textContent = '[' + time + '] ' + event.message;
         line.classList.add('text-danger');
@@ -385,7 +396,7 @@
     return div.innerHTML;
   }
 
-  // ---- boot --------------------------------------------------------------
+  // ---- загрузка --------------------------------------------------------------
   function init() {
     wireNav();
     wireTelemetryToggles();

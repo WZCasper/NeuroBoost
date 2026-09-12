@@ -69,12 +69,12 @@ async function verifyElevationOrWarn() {
   if (!elevated) {
     await dialog.showMessageBox({
       type: 'warning',
-      title: 'NeuroBoost — Administrator rights required',
-      message: 'NeuroBoost needs Administrator rights to read and change system settings.',
+      title: 'NeuroBoost — требуются права администратора',
+      message: 'NeuroBoost требуются права администратора для чтения и изменения системных настроек.',
       detail:
-        'Most actions will fail without them. Close this window, reopen your ' +
-        'terminal with "Run as administrator", and run "npm start" again.',
-      buttons: ['Continue anyway']
+        'Большинство действий не будут работать без них. Закройте это окно, откройте ' +
+        'терминал от имени администратора и снова выполните "npm start".',
+      buttons: ['Всё равно продолжить']
     });
   }
   return elevated;
