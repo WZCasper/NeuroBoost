@@ -7,7 +7,7 @@
     2. An explicit denylist of core shell/security/identity components as a
        second line of defense, in case a future Windows build ever fails to
        flag something correctly.
-  remove-appx.ps1 re-checks both of these again at removal time — this list
+  remove-appx.ps1 re-checks both of these again at removal time - this list
   is not itself a security boundary, just what's shown to the user.
 #>
 [CmdletBinding()]
@@ -32,6 +32,30 @@ $protectedNames = @(
   'MicrosoftWindows.Client.WebExperience'
 )
 
+# Classification is name-pattern based, not malware/usage scanning - it is
+# shown to the user as such. 'insist' = known ad-bundled / promo software
+# with no general legitimate use case. 'suggest' = Microsoft's own optional
+# first-party apps most people don't use but that are not harmful.
+$insistPatterns = @(
+  'candycrush', 'king\.com', 'farmville', 'marchofempires', 'wildtangent', 'bubblewitch',
+  'royalrevolt', 'asphalt', 'hiddencity', 'cookingfever', 'dropbox', 'mcafee', 'norton',
+  'keeper', 'evernote', 'spotifyab\.spotifymusic', 'disney', 'hulu\b'
+)
+$suggestPatterns = @(
+  'bingweather', 'bingnews', 'getstarted', 'microsoftofficehub', 'solitairecollection',
+  '^microsoft\.people$', 'windowsfeedbackhub', 'zunemusic', 'zunevideo', '^microsoft\.skypeapp$',
+  'xboxgamingoverlay', '^microsoft\.gamingapp$', '^microsoft\.yourphone$', 'mixedreality\.portal',
+  '^microsoft\.3dbuilder$', 'poweraut', 'clipchamp', '549981c3f5f10'
+)
+
+function Get-Recommendation {
+  param([string]$Name)
+  $lower = $Name.ToLowerInvariant()
+  foreach ($p in $insistPatterns) { if ($lower -match $p) { return 'insist' } }
+  foreach ($p in $suggestPatterns) { if ($lower -match $p) { return 'suggest' } }
+  return $null
+}
+
 try {
   $packages = Get-AppxPackage |
     Where-Object {
@@ -51,12 +75,13 @@ try {
         $displayName = $dn.ToString()
       }
     } catch {
-      # Keep the raw package Name as a fallback — not fatal.
+      # Keep the raw package Name as a fallback - not fatal.
     }
 
     [pscustomobject]@{
-      id   = $p.PackageFamilyName
-      name = $displayName
+      id             = $p.PackageFamilyName
+      name           = $displayName
+      recommendation = Get-Recommendation -Name $p.Name
     }
   }
 

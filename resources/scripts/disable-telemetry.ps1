@@ -10,8 +10,14 @@
   results: [...per-item outcome, for user-facing feedback...] }. Only
   `backup` is used by enable-telemetry.ps1 to restore exact prior state.
 
+  All strings in this file are plain ASCII on purpose: Windows PowerShell
+  5.1 (powershell.exe) reads .ps1 files without a UTF-8 BOM using the
+  system codepage, not UTF-8, which can corrupt non-ASCII text and break
+  the parser. Human-readable (Russian) labels are attached on the JS side,
+  keyed by the plain "key" string returned here.
+
   Deliberately NOT touched: Windows Update, Windows Defender/Security, and
-  the firewall — this script only reduces telemetry, it does not weaken
+  the firewall - this script only reduces telemetry, it does not weaken
   security.
 #>
 [CmdletBinding()]
@@ -50,44 +56,44 @@ $backup = New-Object System.Collections.Generic.List[object]
 $results = New-Object System.Collections.Generic.List[object]
 
 function Apply-RegChange {
-  param([string]$Label, [string]$Path, [string]$Name, $NewValue)
+  param([string]$Key, [string]$Path, [string]$Name, $NewValue)
   try {
     $prev = Get-RegState $Path $Name
     Set-RegValue $Path $Name $NewValue
     $backup.Add($prev)
-    $results.Add([pscustomobject]@{ label = $Label; status = 'changed' })
+    $results.Add([pscustomobject]@{ key = $Key; status = 'changed' })
   }
   catch {
-    $results.Add([pscustomobject]@{ label = $Label; status = 'failed'; error = $_.Exception.Message })
+    $results.Add([pscustomobject]@{ key = $Key; status = 'failed'; error = $_.Exception.Message })
   }
 }
 
 # 1. Core diagnostic data level (0 = Security/minimum; Home/Pro treat this the
 #    same as Basic since only Enterprise/Education fully honor "Security").
-Apply-RegChange -Label 'Диагностические данные' `
+Apply-RegChange -Key 'core_telemetry' `
   -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name 'AllowTelemetry' -NewValue 0
 
 # 2. Advertising ID
 if ($DisableAdvertisingId) {
-  Apply-RegChange -Label 'Рекламный идентификатор' `
+  Apply-RegChange -Key 'advertising_id' `
     -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo' -Name 'Enabled' -NewValue 0
 }
 
 # 3. Cortana (Windows 10)
 if ($DisableCortana) {
-  Apply-RegChange -Label 'Кортана' `
+  Apply-RegChange -Key 'cortana' `
     -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' -Name 'AllowCortana' -NewValue 0
 }
 
 # 4. Widgets icon on the taskbar (Windows 11)
 if ($DisableWidgets) {
-  Apply-RegChange -Label 'Виджеты' `
+  Apply-RegChange -Key 'widgets' `
     -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'TaskbarDa' -NewValue 0
 }
 
 # 5. Copilot (Windows 11, 23H2+)
 if ($DisableCopilot) {
-  Apply-RegChange -Label 'Copilot' `
+  Apply-RegChange -Key 'copilot' `
     -Path 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' -Name 'TurnOffWindowsCopilot' -NewValue 1
 }
 
@@ -101,11 +107,11 @@ foreach ($svcName in @('DiagTrack', 'dmwappushservice')) {
       Stop-Service -Name $svcName -Force -ErrorAction Stop
       Set-Service -Name $svcName -StartupType Disabled -ErrorAction Stop
       $backup.Add([pscustomobject]@{ path = "service:$svcName"; name = 'StartMode'; existed = $true; value = $startType })
-      $results.Add([pscustomobject]@{ label = "Служба $svcName"; status = 'changed' })
+      $results.Add([pscustomobject]@{ key = "service_$svcName"; status = 'changed' })
     }
   }
   catch {
-    $results.Add([pscustomobject]@{ label = "Служба $svcName"; status = 'failed'; error = $_.Exception.Message })
+    $results.Add([pscustomobject]@{ key = "service_$svcName"; status = 'failed'; error = $_.Exception.Message })
   }
 }
 

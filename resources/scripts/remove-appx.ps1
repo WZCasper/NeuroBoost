@@ -5,7 +5,7 @@
   Reversible: it can be reinstalled from the Microsoft Store at any time.
 
   Re-validates safety at removal time (NonRemovable / framework / resource /
-  denylist) instead of trusting whatever the caller passed in — this is the
+  denylist) instead of trusting whatever the caller passed in - this is the
   actual security boundary, not the list shown in the UI.
 #>
 [CmdletBinding()]

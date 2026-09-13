@@ -2,272 +2,384 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:;" />
   <title>NeuroBoost</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body>
-  <div id="app" class="flex h-full">
+<body class="flex h-screen w-screen selection:bg-cyan selection:text-black">
 
-    <aside class="flex w-56 shrink-0 flex-col border-r border-border bg-panel">
-      <div class="border-b border-border px-5 py-5">
-        <div class="font-display text-[15px] font-semibold tracking-tight">NeuroBoost</div>
-        <div class="mt-0.5 text-[11px] text-text-dim">Оптимизатор системы</div>
-      </div>
-      <nav class="flex flex-1 flex-col gap-1 px-3 py-4" id="nav">
-        <button class="nb-nav-item is-active" data-view="overview" type="button">Обзор</button>
-        <button class="nb-nav-item" data-view="debloat" type="button">Приложения</button>
-        <button class="nb-nav-item" data-view="telemetry" type="button">Телеметрия</button>
-        <button class="nb-nav-item" data-view="ram" type="button">Память</button>
-        <button class="nb-nav-item" data-view="processes" type="button">Процессы</button>
-      </nav>
-      <div class="border-t border-border px-5 py-4 text-[11px] leading-relaxed text-text-dim">
-        Бесплатно и с открытым исходным кодом. Все действия выполняются локально — ничего не отправляется с этого компьютера.
-      </div>
-    </aside>
+  <div class="bg-glow"></div>
+  <div class="bg-glow-2"></div>
 
-    <div class="flex min-w-0 flex-1 flex-col">
-      <header class="flex items-center justify-between border-b border-border bg-panel px-6 py-3">
-        <div class="text-[13px] text-text-dim" id="viewTitle">Обзор</div>
-        <div class="flex items-center gap-2">
-          <span class="nb-pill nb-pill-neutral nb-mono" id="osPill">определение ОС…</span>
-          <span class="nb-pill nb-pill-neutral" id="adminPill">проверка прав…</span>
+  <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3"></div>
+
+  <aside class="w-64 glass-panel flex flex-col h-full relative z-10 border-r border-white/5">
+    <div class="h-24 flex items-center px-6 border-b border-white/5">
+      <div class="flex items-center gap-3">
+        <div class="relative w-10 h-10 flex-shrink-0 nb-glow rounded-xl bg-neuro-800 p-1.5 flex items-center justify-center">
+          <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="url(#logoGrad)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <defs>
+              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#00F0FF" />
+                <stop offset="100%" stop-color="#BD00FF" />
+              </linearGradient>
+            </defs>
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="url(#logoGrad)" stroke="none" />
+          </svg>
         </div>
-      </header>
-
-      <main class="flex-1 overflow-y-auto p-6">
-
-        <!-- ============ ОБЗОР ============ -->
-        <section data-panel="overview" class="flex flex-col gap-5">
-          <div class="nb-card">
-            <div class="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <div class="text-[11px] uppercase tracking-wide text-text-dim">Обнаруженная система</div>
-                <div class="font-display text-2xl font-semibold" id="ovOsName">—</div>
-              </div>
-              <dl class="grid grid-cols-2 gap-x-8 gap-y-1 text-[12px] sm:grid-cols-4">
-                <div><dt class="text-text-dim">Сборка</dt><dd class="nb-mono" id="ovBuild">—</dd></div>
-                <div><dt class="text-text-dim">Редакция</dt><dd id="ovEdition">—</dd></div>
-                <div><dt class="text-text-dim">Архитектура</dt><dd class="nb-mono" id="ovArch">—</dd></div>
-                <div><dt class="text-text-dim">Память</dt><dd class="nb-mono" id="ovMem">—</dd></div>
-              </dl>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <button class="nb-card text-left transition-colors hover:border-accent-dim" data-jump="debloat" type="button">
-              <div class="text-[11px] uppercase tracking-wide text-text-dim">Приложения</div>
-              <div class="mt-1 font-display text-lg" id="ovDebloatCount">— приложений для удаления</div>
-              <div class="mt-1 text-[12px] text-text-dim">Проверенный список, обратимо</div>
-            </button>
-            <button class="nb-card text-left transition-colors hover:border-accent-dim" data-jump="telemetry" type="button">
-              <div class="text-[11px] uppercase tracking-wide text-text-dim">Телеметрия</div>
-              <div class="mt-1 font-display text-lg" id="ovTelemetryStatus">Не настроено</div>
-              <div class="mt-1 text-[12px] text-text-dim">Полностью обратимо в один клик</div>
-            </button>
-            <button class="nb-card text-left transition-colors hover:border-accent-dim" data-jump="ram" type="button">
-              <div class="text-[11px] uppercase tracking-wide text-text-dim">Память</div>
-              <div class="mt-1 font-display text-lg" id="ovRamUsed">— % занято</div>
-              <div class="mt-1 text-[12px] text-text-dim">Очистка списка ожидания</div>
-            </button>
-          </div>
-        </section>
-
-        <!-- ============ ПРИЛОЖЕНИЯ (DEBLOAT) ============ -->
-        <section data-panel="debloat" class="flex flex-col gap-4" style="display:none">
-          <div class="nb-card">
-            <p class="text-[13px] leading-relaxed text-text-dim">
-              Здесь показаны реальные приложения, установленные на этом компьютере. Системные
-              компоненты (оболочка, Store, Калькулятор и т.п.) исключены автоматически и никогда
-              не предлагаются к удалению. Всё удалённое здесь можно в любой момент установить
-              заново из Microsoft Store.
-            </p>
-          </div>
-
-          <div class="nb-card">
-            <div class="mb-2 flex items-center justify-between">
-              <label class="flex items-center gap-2 text-[13px] font-medium">
-                <input type="checkbox" id="debloatSelectAll" class="h-4 w-4 accent-[#ff8a3d]" />
-                Выбрать всё
-              </label>
-              <div class="text-[12px] text-text-dim">Выбрано: <span id="debloatSelectedCount">0</span></div>
-            </div>
-            <div id="debloatList" class="flex flex-col"></div>
-          </div>
-
-          <div class="flex items-center gap-3">
-            <button class="nb-btn-primary" id="debloatRemoveBtn" type="button" disabled>Удалить выбранное</button>
-            <span class="text-[12px] text-text-dim" id="debloatHint">Выберите хотя бы одно приложение</span>
-          </div>
-
-          <div class="nb-card hidden" id="debloatProgressCard">
-            <div class="mb-2 text-[13px] font-medium">Ход выполнения</div>
-            <div id="debloatProgress" class="flex flex-col gap-1.5 text-[12px]"></div>
-          </div>
-        </section>
-
-        <!-- ============ ТЕЛЕМЕТРИЯ ============ -->
-        <section data-panel="telemetry" class="flex flex-col gap-4" style="display:none">
-          <div class="nb-card">
-            <p class="text-[13px] leading-relaxed text-text-dim">
-              Уменьшает объём диагностических данных, собираемых Windows. Центр обновления
-              Windows, защитник Windows и брандмауэр этим приложением никогда не затрагиваются.
-              Каждое изменение фиксируется до применения, поэтому кнопка
-              <span class="text-text">«Восстановить по умолчанию»</span> вернёт систему точно в
-              прежнее состояние.
-            </p>
-          </div>
-
-          <div class="nb-card">
-            <div class="nb-row">
-              <div>
-                <div class="text-[13px]">Диагностические данные (основные)</div>
-                <div class="text-[12px] text-text-dim">Устанавливает минимальный уровень сбора телеметрии</div>
-              </div>
-              <span class="nb-pill nb-pill-safe">всегда включено</span>
-            </div>
-            <div class="nb-row">
-              <div>
-                <div class="text-[13px]">Рекламный идентификатор</div>
-                <div class="text-[12px] text-text-dim">Запрещает приложениям использовать ваш рекламный ID для персонализации</div>
-              </div>
-              <button class="nb-toggle" data-toggle="disableAdvertisingId" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
-            </div>
-            <div class="nb-row" data-feature="cortanaRemovable">
-              <div>
-                <div class="text-[13px]">Кортана</div>
-                <div class="text-[12px] text-text-dim">Windows 10 — отключает Кортану через политику</div>
-              </div>
-              <button class="nb-toggle" data-toggle="disableCortana" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
-            </div>
-            <div class="nb-row" data-feature="widgetsToggle">
-              <div>
-                <div class="text-[13px]">Виджеты</div>
-                <div class="text-[12px] text-text-dim">Windows 11 — скрывает значок виджетов на панели задач</div>
-              </div>
-              <button class="nb-toggle" data-toggle="disableWidgets" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
-            </div>
-            <div class="nb-row" data-feature="copilotToggle">
-              <div>
-                <div class="text-[13px]">Copilot</div>
-                <div class="text-[12px] text-text-dim">Windows 11 23H2+ — отключает Windows Copilot</div>
-              </div>
-              <button class="nb-toggle" data-toggle="disableCopilot" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-3">
-            <button class="nb-btn-primary" id="telemetryApplyBtn" type="button">Применить</button>
-            <button class="nb-btn-danger" id="telemetryRestoreBtn" type="button" disabled>Восстановить по умолчанию</button>
-            <span class="text-[12px] text-text-dim" id="telemetryStatusText">Не настроено</span>
-          </div>
-        </section>
-
-        <!-- ============ ПАМЯТЬ (RAM) ============ -->
-        <section data-panel="ram" class="flex flex-col gap-4" style="display:none">
-          <div class="nb-card">
-            <div class="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <div class="text-[11px] uppercase tracking-wide text-text-dim">Физическая память</div>
-                <div class="font-display text-2xl font-semibold nb-mono"><span id="ramUsedGB">—</span> / <span id="ramTotalGB">—</span> ГБ</div>
-              </div>
-              <div class="text-right">
-                <div class="text-[11px] uppercase tracking-wide text-text-dim">Занято</div>
-                <div class="font-display text-2xl font-semibold nb-mono" id="ramPercent">—%</div>
-              </div>
-            </div>
-            <div class="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-panel-2">
-              <div class="h-full rounded-full bg-accent" id="ramBar" style="width:0%"></div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div class="nb-card">
-              <div class="text-[20px] leading-none">🧠</div>
-              <div class="mt-2 text-[13px] font-medium">Что это</div>
-              <p class="mt-1 text-[12px] leading-relaxed text-text-dim">
-                Windows держит часть недавно открытых файлов в оперативной памяти «про запас» —
-                это и есть список ожидания (standby list). Он помечен как «занятый», хотя прямо
-                сейчас ничем важным не используется.
-              </p>
-            </div>
-            <div class="nb-card">
-              <div class="text-[20px] leading-none">⚡</div>
-              <div class="mt-2 text-[13px] font-medium">Что делает очистка</div>
-              <p class="mt-1 text-[12px] leading-relaxed text-text-dim">
-                Кнопка ниже мгновенно освобождает эти страницы памяти, чтобы новая программа —
-                игра, рендер, тяжёлый редактор — могла сразу их занять, не дожидаясь, пока
-                Windows освободит место сама.
-              </p>
-            </div>
-            <div class="nb-card">
-              <div class="text-[20px] leading-none">🛡️</div>
-              <div class="mt-2 text-[13px] font-medium">Это безопасно</div>
-              <p class="mt-1 text-[12px] leading-relaxed text-text-dim">
-                ✅ Не закрывает программы<br />
-                ✅ Не трогает файл подкачки<br />
-                ✅ Не может привести к потере данных
-              </p>
-            </div>
-          </div>
-
-          <div class="nb-card">
-            <p class="text-[13px] leading-relaxed text-text-dim">
-              📊 <span class="text-text">Честно о результате:</span> Windows и так считает эту
-              память «доступной» в диспетчере задач, поэтому число ниже может почти не измениться
-              — и это нормально. Эффект не в большем количестве свободных гигабайт, а в том, что
-              следующая тяжёлая программа запустится и начнёт работать чуть быстрее.
-            </p>
-          </div>
-
-          <div class="flex items-center gap-3">
-            <button class="nb-btn-primary" id="ramPurgeBtn" type="button">Очистить список ожидания</button>
-            <span class="text-[12px] text-text-dim" id="ramStatusText"></span>
-          </div>
-        </section>
-
-        <!-- ============ ПРОЦЕССЫ ============ -->
-        <section data-panel="processes" class="flex flex-col gap-4" style="display:none">
-          <div class="nb-card">
-            <div class="nb-row">
-              <div>
-                <div class="text-[13px]">Автоускорение</div>
-                <div class="text-[12px] text-text-dim">Повышает приоритет известным ресурсоёмким приложениям (игры, OBS, рендеринг) и мягко понижает приоритет фоновых приложений, пока одно из них запущено</div>
-              </div>
-              <button class="nb-toggle" id="autoBoostToggle" type="button" aria-pressed="false"><span class="nb-toggle-knob"></span></button>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-between">
-            <div class="text-[13px] font-medium">Запущенные процессы</div>
-            <button class="nb-btn" id="processRefreshBtn" type="button">Обновить</button>
-          </div>
-
-          <div class="nb-card overflow-x-auto p-0">
-            <table class="w-full min-w-[640px] text-left text-[12px]">
-              <thead>
-                <tr class="border-b border-border text-text-dim">
-                  <th class="px-4 py-2.5 font-medium">Процесс</th>
-                  <th class="px-4 py-2.5 font-medium">PID</th>
-                  <th class="px-4 py-2.5 font-medium">ЦП</th>
-                  <th class="px-4 py-2.5 font-medium">Память</th>
-                  <th class="px-4 py-2.5 font-medium">Приоритет</th>
-                </tr>
-              </thead>
-              <tbody id="processTableBody"></tbody>
-            </table>
-          </div>
-
-          <div id="autoBoostLog" class="flex flex-col gap-1 text-[12px] text-text-dim"></div>
-        </section>
-
-      </main>
+        <div class="flex flex-col">
+          <span class="text-[15px] font-bold tracking-wide text-white">Neuro<span class="text-gradient">Boost</span></span>
+          <span class="text-[10px] text-slate-400 font-mono tracking-widest uppercase">Оптимизатор системы</span>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <div id="toast" class="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex justify-center" style="display:none">
-    <div class="pointer-events-auto rounded-md border border-danger/40 bg-[#1a1210] px-4 py-2.5 text-[13px] text-danger shadow-lg" id="toastMessage"></div>
-  </div>
+    <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1" id="nav">
+      <button class="nb-nav-item is-active" data-view="overview" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+        Обзор
+      </button>
+      <button class="nb-nav-item" data-view="debloat" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        Приложения
+      </button>
+      <button class="nb-nav-item" data-view="telemetry" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="M9 12l2 2 4-4"/></svg>
+        Телеметрия
+      </button>
+      <button class="nb-nav-item" data-view="ram" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/></svg>
+        Память
+      </button>
+      <button class="nb-nav-item" data-view="processes" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+        Процессы
+      </button>
+    </nav>
+
+    <div class="p-4 border-t border-white/5 bg-black/20">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-slate-400">Статус системы</span>
+        <span class="flex h-2 w-2" id="statusDot">
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
+        </span>
+      </div>
+      <div class="text-xs text-slate-500 font-mono" id="footerOs">Определение ОС...</div>
+      <div class="text-xs text-slate-500 font-mono mt-1">Права админа: <span id="footerAdmin" class="text-slate-400">...</span></div>
+    </div>
+  </aside>
+
+  <main class="flex-1 relative h-full overflow-y-auto z-10">
+    <header class="h-16 border-b border-white/5 glass-panel sticky top-0 z-40 px-8 flex items-center justify-between">
+      <h1 id="page-title" class="text-xl font-semibold text-white tracking-wide">Обзор системы</h1>
+      <div class="flex items-center gap-3">
+        <span class="nb-pill nb-pill-neutral nb-mono" id="osPill">определение ОС...</span>
+        <span class="nb-pill nb-pill-neutral" id="adminPill">проверка прав...</span>
+      </div>
+    </header>
+
+    <div class="p-8 max-w-7xl mx-auto">
+
+      <!-- ================= ОБЗОР ================= -->
+      <section data-panel="overview" class="nb-fade-in">
+        <div class="relative overflow-hidden rounded-2xl glass-card p-8 mb-8" style="border-top: 2px solid var(--color-cyan)">
+          <div class="absolute -right-20 -top-20 w-64 h-64 rounded-full blur-3xl" style="background: rgba(189,0,255,0.15)"></div>
+          <div class="absolute -left-20 -bottom-20 w-64 h-64 rounded-full blur-3xl" style="background: rgba(0,240,255,0.15)"></div>
+          <div class="relative z-10 flex flex-wrap justify-between items-center gap-6">
+            <div>
+              <h2 class="text-3xl font-bold mb-2 text-white">Система <span class="text-gradient" id="ovHeroWord">готова к анализу</span></h2>
+              <p class="text-slate-400 max-w-md" id="ovHeroText">Открой любой раздел слева, чтобы посмотреть реальное состояние приложений, телеметрии, памяти и процессов.</p>
+            </div>
+            <button id="heroBoostBtn" class="group relative px-6 py-3 font-semibold text-white rounded-xl bg-neuro-700 overflow-hidden transition-all" style="box-shadow: 0 0 15px rgba(0,240,255,0.3)" type="button">
+              <div class="absolute inset-0 w-full h-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" style="background: linear-gradient(90deg, var(--color-cyan), var(--color-purple))"></div>
+              <span class="relative flex items-center gap-2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                УСКОРИТЬ СЕЙЧАС
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <button class="glass-card is-interactive rounded-xl p-6 flex flex-col text-left" data-jump="ram" type="button">
+            <div class="flex justify-between items-start mb-4">
+              <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+              </div>
+              <span class="text-xs font-mono text-slate-500">ОПЕРАТИВНАЯ ПАМЯТЬ</span>
+            </div>
+            <div class="mt-auto">
+              <div class="text-3xl font-bold text-white mb-1" id="ovRamPercent">-%</div>
+              <div class="w-full bg-neuro-800 rounded-full h-2 mb-2"><div class="h-2 rounded-full bg-blue-500" id="ovRamBar" style="width:0%"></div></div>
+              <div class="text-xs text-slate-400 flex justify-between">
+                <span id="ovRamUsedText">- ГБ занято</span>
+                <span id="ovRamTotalText">- ГБ всего</span>
+              </div>
+            </div>
+          </button>
+
+          <button class="glass-card is-interactive rounded-xl p-6 flex flex-col text-left" data-jump="debloat" type="button">
+            <div class="flex justify-between items-start mb-4">
+              <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              </div>
+              <span class="text-xs font-mono text-slate-500">ПРИЛОЖЕНИЯ</span>
+            </div>
+            <div class="mt-auto">
+              <div class="text-3xl font-bold text-white mb-1" id="ovAppsCount">-</div>
+              <div class="text-sm text-slate-400 mb-2">можно удалить</div>
+              <div class="text-xs text-slate-400 flex items-center gap-1" id="ovAppsHint">Реальный список с этого ПК</div>
+            </div>
+          </button>
+
+          <button class="glass-card is-interactive rounded-xl p-6 flex flex-col text-left" data-jump="telemetry" type="button">
+            <div class="flex justify-between items-start mb-4">
+              <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
+              </div>
+              <span class="text-xs font-mono text-slate-500">ТЕЛЕМЕТРИЯ</span>
+            </div>
+            <div class="mt-auto">
+              <div class="text-3xl font-bold text-white mb-1" id="ovTelemetryStatus">Не настроено</div>
+              <div class="text-sm text-slate-400 mb-2">слежка и сбор данных</div>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <!-- ================= ПРИЛОЖЕНИЯ ================= -->
+      <section data-panel="debloat" class="nb-fade-in" style="display:none">
+        <div class="flex flex-wrap justify-between items-end gap-4 mb-6">
+          <div>
+            <h3 class="text-xl font-semibold mb-1 text-white">Пакеты Windows AppX</h3>
+            <p class="text-sm text-slate-400 max-w-2xl">Реальные приложения, установленные на этом компьютере. Системные компоненты исключены автоматически и никогда не предлагаются к удалению. Всё удалённое можно поставить обратно из Microsoft Store.</p>
+          </div>
+          <button class="nb-btn" id="debloatRescanBtn" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+            Пересканировать
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between mb-4">
+          <label class="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" id="debloatSelectAll" class="h-4 w-4 accent-cyan" />
+            Выбрать всё
+          </label>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500">Выбрано: <span id="debloatSelectedCount">0</span></span>
+            <button class="nb-btn-primary" id="debloatRemoveBtn" type="button" disabled>Удалить выбранное</button>
+          </div>
+        </div>
+
+        <div class="mb-4 flex flex-wrap items-center gap-4 text-xs text-slate-400">
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-danger inline-block"></span> настоятельно рекомендуется удалить</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-warn inline-block"></span> можно удалить</span>
+        </div>
+
+        <div id="debloatList" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+
+        <div class="glass-card rounded-xl p-5 mt-6 hidden" id="debloatProgressCard">
+          <div class="mb-2 text-[13px] font-medium text-white">Ход выполнения</div>
+          <div id="debloatProgress" class="flex flex-col gap-1.5 text-[12px]"></div>
+        </div>
+      </section>
+
+      <!-- ================= ТЕЛЕМЕТРИЯ ================= -->
+      <section data-panel="telemetry" class="nb-fade-in" style="display:none">
+        <div class="flex flex-wrap justify-between items-end gap-4 mb-6">
+          <div>
+            <h3 class="text-xl font-semibold mb-1 text-white">Конфиденциальность и телеметрия</h3>
+            <p class="text-sm text-slate-400 max-w-2xl">Отключение слежки Windows. Центр обновления, защитник Windows и брандмауэр никогда не затрагиваются. Каждое изменение фиксируется до применения и может быть отменено.</p>
+          </div>
+          <button class="nb-btn" id="telemetryRestoreBtn" type="button" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            Восстановить по умолчанию
+          </button>
+        </div>
+
+        <div class="glass-card rounded-xl border border-white/5 divide-y divide-white/5 mb-4">
+          <div class="nb-row">
+            <div>
+              <div class="text-[13px] text-slate-200">Диагностические данные (основные)</div>
+              <div class="text-[12px] text-slate-400">Устанавливает минимальный уровень сбора телеметрии</div>
+            </div>
+            <span class="nb-pill nb-pill-safe">всегда включено</span>
+          </div>
+          <div class="nb-row">
+            <div>
+              <div class="text-[13px] text-slate-200">Рекламный идентификатор</div>
+              <div class="text-[12px] text-slate-400">Запрещает приложениям использовать ваш рекламный ID для персонализации</div>
+            </div>
+            <div class="relative inline-block w-11 h-6">
+              <input type="checkbox" id="tg-ad" class="nb-toggle-input" data-toggle="disableAdvertisingId" />
+              <label for="tg-ad" class="nb-toggle-label"></label>
+            </div>
+          </div>
+          <div class="nb-row" data-feature="cortanaRemovable">
+            <div>
+              <div class="text-[13px] text-slate-200">Кортана</div>
+              <div class="text-[12px] text-slate-400">Windows 10 - отключает Кортану через политику</div>
+            </div>
+            <div class="relative inline-block w-11 h-6">
+              <input type="checkbox" id="tg-cortana" class="nb-toggle-input" data-toggle="disableCortana" />
+              <label for="tg-cortana" class="nb-toggle-label"></label>
+            </div>
+          </div>
+          <div class="nb-row" data-feature="widgetsToggle">
+            <div>
+              <div class="text-[13px] text-slate-200">Виджеты</div>
+              <div class="text-[12px] text-slate-400">Windows 11 - скрывает значок виджетов на панели задач</div>
+            </div>
+            <div class="relative inline-block w-11 h-6">
+              <input type="checkbox" id="tg-widgets" class="nb-toggle-input" data-toggle="disableWidgets" />
+              <label for="tg-widgets" class="nb-toggle-label"></label>
+            </div>
+          </div>
+          <div class="nb-row" data-feature="copilotToggle">
+            <div>
+              <div class="text-[13px] text-slate-200">Copilot</div>
+              <div class="text-[12px] text-slate-400">Windows 11 23H2+ - отключает Windows Copilot</div>
+            </div>
+            <div class="relative inline-block w-11 h-6">
+              <input type="checkbox" id="tg-copilot" class="nb-toggle-input" data-toggle="disableCopilot" />
+              <label for="tg-copilot" class="nb-toggle-label"></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button class="nb-btn-primary" id="telemetryApplyBtn" type="button">Применить</button>
+          <span class="text-[12px] text-slate-400" id="telemetryStatusText">Не настроено</span>
+        </div>
+      </section>
+
+      <!-- ================= ПАМЯТЬ ================= -->
+      <section data-panel="ram" class="nb-fade-in" style="display:none">
+        <div class="text-center mb-8">
+          <h3 class="text-2xl font-semibold mb-2 text-white">Оптимизатор ОЗУ</h3>
+          <p class="text-slate-400 max-w-xl mx-auto">Реальная очистка списка ожидания и рабочих наборов процессов - не имитация. Файл подкачки и работающие программы не затрагиваются.</p>
+        </div>
+
+        <div class="flex flex-col items-center justify-center mb-10">
+          <div class="relative w-64 h-64 mb-8">
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 150 150">
+              <circle cx="75" cy="75" r="70" fill="none" stroke="#1A2438" stroke-width="8"></circle>
+              <circle id="ram-progress" class="ram-circle" cx="75" cy="75" r="70" fill="none" stroke="url(#ramGrad)" stroke-width="8" stroke-linecap="round"></circle>
+              <defs>
+                <linearGradient id="ramGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#00F0FF" />
+                  <stop offset="100%" stop-color="#BD00FF" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span id="ram-text" class="text-4xl font-bold text-white nb-mono">-<span class="text-lg text-slate-400 font-normal"> ГБ</span></span>
+              <span class="text-xs text-slate-400 mt-1 uppercase tracking-wider">Занято памяти</span>
+            </div>
+          </div>
+
+          <button id="btn-purge" class="nb-btn-primary px-8 py-4 text-base" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9L12 3z"/><path d="M5 3v4"/><path d="M19 17v4"/></svg>
+            Очистить память сейчас
+          </button>
+
+          <div class="mt-8 grid grid-cols-3 gap-8 text-center w-full max-w-lg">
+            <div>
+              <div class="text-slate-400 text-xs mb-1">Занято</div>
+              <div class="font-mono text-lg text-white" id="ramUsedGB">- ГБ</div>
+            </div>
+            <div>
+              <div class="text-slate-400 text-xs mb-1">Освобождено</div>
+              <div id="ramFreedGB" class="font-mono text-lg text-cyan">- ГБ</div>
+            </div>
+            <div>
+              <div class="text-slate-400 text-xs mb-1">Процессов очищено</div>
+              <div id="ramTrimmedCount" class="font-mono text-lg text-green-400">-</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="glass-card rounded-xl p-5">
+            <div class="text-[20px] leading-none mb-2">🧠</div>
+            <div class="text-[13px] font-medium text-white mb-1">Что это</div>
+            <p class="text-[12px] leading-relaxed text-slate-400">Windows держит часть недавно открытых файлов в памяти "про запас" - список ожидания. Он помечен как "занятый", хотя прямо сейчас не нужен.</p>
+          </div>
+          <div class="glass-card rounded-xl p-5">
+            <div class="text-[20px] leading-none mb-2">⚡</div>
+            <div class="text-[13px] font-medium text-white mb-1">Что делает очистка</div>
+            <p class="text-[12px] leading-relaxed text-slate-400">Освобождает список ожидания и заставляет фоновые программы вернуть системе неиспользуемые страницы памяти прямо сейчас, а не когда-нибудь потом.</p>
+          </div>
+          <div class="glass-card rounded-xl p-5">
+            <div class="text-[20px] leading-none mb-2">🛡️</div>
+            <div class="text-[13px] font-medium text-white mb-1">Это безопасно</div>
+            <p class="text-[12px] leading-relaxed text-slate-400">✅ Не закрывает программы<br/>✅ Не трогает файл подкачки<br/>✅ Не может привести к потере данных</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= ПРОЦЕССЫ ================= -->
+      <section data-panel="processes" class="nb-fade-in" style="display:none">
+        <div class="glass-card rounded-xl p-5 mb-6">
+          <div class="flex items-start gap-3">
+            <svg class="text-cyan shrink-0 mt-0.5" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <div class="text-[13px] text-slate-300 leading-relaxed">
+              <p class="mb-2"><span class="text-white font-medium">Что делает эта вкладка:</span> показывает все процессы, запущенные прямо сейчас, и позволяет вручную или автоматически поднимать приоритет ЦП тяжёлым программам (игры, стриминг, рендеринг) и слегка понижать его известным фоновым приложениям.</p>
+              <p class="flex items-start gap-1.5 text-warn">
+                <svg class="shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span>Приоритет "Реального времени" заблокирован намеренно - он может подвесить систему. Наведите курсор на имя процесса, чтобы увидеть, что это за процесс, и стоит ли его трогать - для процессов, отмеченных как критические, менять приоритет не рекомендуется.</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card rounded-xl p-5 mb-6">
+          <div class="nb-row !px-0 !py-0 !border-0">
+            <div>
+              <div class="text-[13px] text-slate-200">Авто-ускорение</div>
+              <div class="text-[12px] text-slate-400">Автоматически повышает приоритет известным тяжёлым программам и слегка понижает - фоновым, пока одна из них запущена</div>
+            </div>
+            <div class="relative inline-block w-11 h-6">
+              <input type="checkbox" id="autoBoostToggle" class="nb-toggle-input" />
+              <label for="autoBoostToggle" class="nb-toggle-label"></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-between items-end gap-4 mb-4">
+          <h3 class="text-lg font-semibold text-white">Запущенные процессы</h3>
+          <div class="flex items-center gap-3">
+            <div class="relative">
+              <svg class="absolute left-3 top-2.5 text-slate-500" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="processSearch" placeholder="Поиск процессов..." class="bg-neuro-800 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-cyan transition-colors text-white w-56" />
+            </div>
+            <button class="nb-btn" id="processRefreshBtn" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+              Обновить
+            </button>
+          </div>
+        </div>
+
+        <div class="glass-card rounded-xl overflow-hidden border border-white/5">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-black/40 border-b border-white/5 text-xs text-slate-400 uppercase tracking-wider">
+                <th class="p-4 font-medium">Процесс</th>
+                <th class="p-4 font-medium">PID</th>
+                <th class="p-4 font-medium">ЦП</th>
+                <th class="p-4 font-medium">Память</th>
+                <th class="p-4 font-medium text-right">Приоритет</th>
+              </tr>
+            </thead>
+            <tbody id="processTableBody" class="divide-y divide-white/5 text-sm"></tbody>
+          </table>
+        </div>
+
+        <div id="autoBoostLog" class="flex flex-col gap-1 text-[12px] text-slate-500 mt-3"></div>
+      </section>
+
+    </div>
+  </main>
 
   <script src="./renderer.js"></script>
 </body>

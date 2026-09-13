@@ -17,7 +17,7 @@ async function getTelemetryStatus() {
 /**
  * Applies telemetry-reducing changes. Every value the script is about to
  * touch is read and recorded *before* being changed, so restoreTelemetry()
- * can put the machine back exactly the way it was — instead of guessing at
+ * can put the machine back exactly the way it was - instead of guessing at
  * "Windows defaults", which vary by edition and build.
  */
 async function disableTelemetry(options = {}) {
@@ -54,7 +54,7 @@ async function disableTelemetry(options = {}) {
 async function restoreTelemetry() {
   const backupPath = backupFilePath();
   if (!fs.existsSync(backupPath)) {
-    throw new Error('No telemetry backup found — nothing to restore.');
+    throw new Error('No telemetry backup found - nothing to restore.');
   }
   const scriptPath = path.join(scriptsDir(), 'enable-telemetry.ps1');
   await runPowerShellFile(scriptPath, ['-BackupFilePath', backupPath], 30000);

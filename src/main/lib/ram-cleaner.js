@@ -17,22 +17,41 @@ async function getMemoryInfo() {
 }
 
 /**
- * Purges the Windows standby list (cached, reclaimable file-backed pages)
- * using the same technique as the well-known open-source "EmptyStandbyList"
- * utility: NtSetSystemInformation(SystemMemoryListInformation=80,
- * MemoryPurgeStandbyList=4), after enabling SeProfileSingleProcessPrivilege
- * on the current process token. Requires an elevated process.
- *
- * Note on expectations: Windows already reports standby pages as "available"
- * in GlobalMemoryStatusEx, so this rarely produces a dramatic jump in the
- * free-memory number. What it actually does is make that memory instantly
- * reusable, which mainly helps right before launching something memory
- * hungry (a game, a render, a large build).
+ * Runs two real Windows memory operations - not a simulation - see the
+ * comments at the top of purge-standby-list.ps1 for exactly what each one
+ * does and why neither can cause data loss:
+ *   1. Purges the standby list (NtSetSystemInformation).
+ *   2. Trims the working set of eligible running processes (EmptyWorkingSet)
+ *      - this is the part that actually moves the "used memory" number,
+ *      since Windows already counts standby pages as "available".
+ * Returns real before/after memory stats plus how many processes were
+ * actually trimmed, so the result is independently checkable rather than
+ * just a "Done" message.
  */
 async function purgeStandbyList() {
+  const before = await getMemoryInfo();
+
   const scriptPath = path.join(scriptsDir(), 'purge-standby-list.ps1');
-  await runPowerShellFile(scriptPath, [], 15000);
-  return getMemoryInfo();
+  const raw = await runPowerShellFile(scriptPath, [], 30000);
+
+  let stats = { standbyPurged: false, trimmedCount: 0, trimmedNames: [] };
+  try {
+    stats = JSON.parse(raw.trim());
+  } catch (_) {
+    // Keep the defaults above - the memory stats below are still real
+    // and useful even if this specific parse failed.
+  }
+
+  const after = await getMemoryInfo();
+
+  return {
+    ...after,
+    beforeUsedGB: before.usedGB,
+    freedGB: +Math.max(0, before.usedGB - after.usedGB).toFixed(2),
+    standbyPurged: !!stats.standbyPurged,
+    trimmedCount: stats.trimmedCount || 0,
+    trimmedNames: Array.isArray(stats.trimmedNames) ? stats.trimmedNames : []
+  };
 }
 
 module.exports = { getMemoryInfo, purgeStandbyList };
