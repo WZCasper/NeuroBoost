@@ -8,7 +8,7 @@
 
 [3m[1m[34m≈[39m[22m[23m tailwindcss [34mv4.3.3[39m
 
-Done in [34m123ms[39m
+Done in [34m136ms[39m
   • electron-builder  version=26.15.3 os=10.0.26100
   • loaded configuration  file=package.json ("build" field)
   • executing @electron/rebuild  electronVersion=44.3.0 arch=x64 buildFromSource=false workspaceRoot=D:\a\NeuroBoost\NeuroBoost projectDir=./ appDir=./
