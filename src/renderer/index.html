@@ -297,6 +297,14 @@
               <div id="ramTrimmedCount" class="font-mono text-lg text-green-400">-</div>
             </div>
           </div>
+
+          <div class="glass-card rounded-xl p-5 mt-6 w-full max-w-lg hidden" id="ramProgressCard">
+            <div class="mb-2 text-[13px] font-medium text-white flex items-center gap-2">
+              <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-cyan"></span></span>
+              Очистка в реальном времени
+            </div>
+            <div id="ramProgressLog" class="flex flex-col gap-1 text-[12px] font-mono text-slate-400 max-h-40 overflow-y-auto"></div>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -324,10 +332,10 @@
           <div class="flex items-start gap-3">
             <svg class="text-cyan shrink-0 mt-0.5" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             <div class="text-[13px] text-slate-300 leading-relaxed">
-              <p class="mb-2"><span class="text-white font-medium">Что делает эта вкладка:</span> показывает все процессы, запущенные прямо сейчас, и позволяет вручную или автоматически поднимать приоритет ЦП тяжёлым программам (игры, стриминг, рендеринг) и слегка понижать его известным фоновым приложениям.</p>
+              <p class="mb-2"><span class="text-white font-medium">Что делает эта вкладка:</span> показывает все процессы, запущенные прямо сейчас, подсвечивает красным те, что сильно нагружают ЦП или память, и позволяет вручную или автоматически поднимать приоритет тяжёлым программам, а также завершать некритичные процессы.</p>
               <p class="flex items-start gap-1.5 text-warn">
                 <svg class="shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <span>Приоритет "Реального времени" заблокирован намеренно - он может подвесить систему. Наведите курсор на имя процесса, чтобы увидеть, что это за процесс, и стоит ли его трогать - для процессов, отмеченных как критические, менять приоритет не рекомендуется.</span>
+                <span>Приоритет "Реального времени" заблокирован намеренно, а кнопка "Завершить" недоступна для критических системных процессов. Наведите курсор на имя любого процесса, чтобы увидеть его описание (или путь к файлу, если процесс не из нашей базы).</span>
               </p>
             </div>
           </div>
@@ -337,12 +345,16 @@
           <div class="nb-row !px-0 !py-0 !border-0">
             <div>
               <div class="text-[13px] text-slate-200">Авто-ускорение</div>
-              <div class="text-[12px] text-slate-400">Автоматически повышает приоритет известным тяжёлым программам и слегка понижает - фоновым, пока одна из них запущена</div>
+              <div class="text-[12px] text-slate-400">Автоматически повышает приоритет самому нагруженному процессу и слегка понижает - фоновым, пока идёт нагрузка</div>
             </div>
             <div class="relative inline-block w-11 h-6">
               <input type="checkbox" id="autoBoostToggle" class="nb-toggle-input" />
               <label for="autoBoostToggle" class="nb-toggle-label"></label>
             </div>
+          </div>
+          <div id="autoBoostStatus" class="hidden mt-4 pt-4 border-t border-white/5 flex items-center gap-3 text-[13px]">
+            <span class="relative flex h-2.5 w-2.5 shrink-0"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan"></span></span>
+            <span id="autoBoostStatusText" class="text-slate-300">Мониторинг...</span>
           </div>
         </div>
 
@@ -369,6 +381,7 @@
                 <th class="p-4 font-medium">ЦП</th>
                 <th class="p-4 font-medium">Память</th>
                 <th class="p-4 font-medium text-right">Приоритет</th>
+                <th class="p-4 font-medium text-right">Действие</th>
               </tr>
             </thead>
             <tbody id="processTableBody" class="divide-y divide-white/5 text-sm"></tbody>

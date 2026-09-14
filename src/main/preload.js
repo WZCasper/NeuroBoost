@@ -32,11 +32,13 @@ contextBridge.exposeInMainWorld('neuroboost', {
   },
   ram: {
     info: () => invoke('ram:info'),
-    purge: () => invoke('ram:purge')
+    purge: () => invoke('ram:purge'),
+    onProgress: (cb) => subscribe('ram:progress', cb)
   },
   process: {
     list: () => invoke('process:list'),
     setPriority: (pid, priority) => invoke('process:setPriority', pid, priority),
+    kill: (pid, name) => invoke('process:kill', pid, name),
     autoBoostStart: (options) => invoke('process:autoBoostStart', options),
     autoBoostStop: () => invoke('process:autoBoostStop'),
     onAutoBoostEvent: (cb) => subscribe('process:autoBoostEvent', cb)

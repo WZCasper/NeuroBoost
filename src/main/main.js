@@ -117,6 +117,7 @@ function registerIpcHandlers() {
   const {
     listProcesses,
     setProcessPriority,
+    killProcess,
     startAutoBoost,
     stopAutoBoost
   } = require('./lib/process-manager');
@@ -151,10 +152,15 @@ function registerIpcHandlers() {
   safe('telemetry:restore', () => restoreTelemetry());
 
   safe('ram:info', () => getMemoryInfo());
-  safe('ram:purge', () => purgeStandbyList());
+  safe('ram:purge', () =>
+    purgeStandbyList((event) => {
+      if (mainWindow) mainWindow.webContents.send('ram:progress', event);
+    })
+  );
 
   safe('process:list', () => listProcesses());
   safe('process:setPriority', (pid, priority) => setProcessPriority(pid, priority));
+  safe('process:kill', (pid, name) => killProcess(pid, name));
   safe('process:autoBoostStart', (options) =>
     startAutoBoost(options, (event) => {
       if (mainWindow) mainWindow.webContents.send('process:autoBoostEvent', event);

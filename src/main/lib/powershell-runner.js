@@ -15,10 +15,14 @@ const DEFAULT_TIMEOUT_MS = 30000;
  * @param {string[]} [options.args]      Extra args appended (only used with asFile).
  * @param {number} [options.timeoutMs]   Kill + reject after this many ms.
  * @param {boolean} [options.asFile]     Run as `-File <path> <args...>`.
+ * @param {(line: string) => void} [options.onLine]
+ *        Called once per stdout line as it arrives, for real-time progress
+ *        (a script emits one JSON object per line). The full stdout is
+ *        still buffered and returned on resolve either way.
  * @returns {Promise<string>}            stdout on success (exit code 0).
  */
 function runPowerShell(scriptOrPath, options = {}) {
-  const { args = [], timeoutMs = DEFAULT_TIMEOUT_MS, asFile = false } = options;
+  const { args = [], timeoutMs = DEFAULT_TIMEOUT_MS, asFile = false, onLine } = options;
 
   return new Promise((resolve, reject) => {
     const psArgs = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden'];
@@ -33,6 +37,7 @@ function runPowerShell(scriptOrPath, options = {}) {
 
     let stdout = '';
     let stderr = '';
+    let lineBuffer = '';
     let settled = false;
 
     const timer = setTimeout(() => {
@@ -43,7 +48,17 @@ function runPowerShell(scriptOrPath, options = {}) {
     }, timeoutMs);
 
     child.stdout.on('data', (d) => {
-      stdout += d.toString('utf8');
+      const text = d.toString('utf8');
+      stdout += text;
+      if (onLine) {
+        lineBuffer += text;
+        let idx;
+        while ((idx = lineBuffer.indexOf('\n')) >= 0) {
+          const line = lineBuffer.slice(0, idx).trim();
+          lineBuffer = lineBuffer.slice(idx + 1);
+          if (line) onLine(line);
+        }
+      }
     });
     child.stderr.on('data', (d) => {
       stderr += d.toString('utf8');
@@ -60,6 +75,9 @@ function runPowerShell(scriptOrPath, options = {}) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (onLine && lineBuffer.trim()) {
+        onLine(lineBuffer.trim());
+      }
       if (code !== 0) {
         reject(new Error(`PowerShell exited with code ${code}: ${(stderr || stdout).trim()}`));
         return;
@@ -69,8 +87,8 @@ function runPowerShell(scriptOrPath, options = {}) {
   });
 }
 
-function runPowerShellFile(scriptPath, args = [], timeoutMs) {
-  return runPowerShell(scriptPath, { args, timeoutMs, asFile: true });
+function runPowerShellFile(scriptPath, args = [], timeoutMs, onLine) {
+  return runPowerShell(scriptPath, { args, timeoutMs, asFile: true, onLine });
 }
 
 module.exports = { runPowerShell, runPowerShellFile };

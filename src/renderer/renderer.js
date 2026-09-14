@@ -111,8 +111,47 @@
     spotify: { d: 'Музыкальный сервис Spotify', critical: false },
     telegram: { d: 'Мессенджер Telegram', critical: false },
     skype: { d: 'Мессенджер Skype', critical: false },
-    teams: { d: 'Microsoft Teams', critical: false }
+    teams: { d: 'Microsoft Teams', critical: false },
+    rundll32: { d: 'Хост для функций из библиотек DLL Windows', critical: false },
+    conhost: { d: 'Хост консольного окна Windows', critical: false },
+    applicationframehost: { d: 'Обёртка окна для приложений из Microsoft Store', critical: false },
+    backgroundtaskhost: { d: 'Хост фоновых задач приложений из Microsoft Store', critical: false },
+    wmiprvse: { d: 'Служба инструментария управления Windows (WMI)', critical: false },
+    trustedinstaller: { d: 'Служба установки компонентов Windows', critical: true },
+    msiexec: { d: 'Установщик Windows (запуск/удаление программ)', critical: false },
+    'nvidia broadcast': { d: 'Обработка видео и звука NVIDIA Broadcast', critical: false },
+    nvsphelper64: { d: 'Служебный процесс NVIDIA', critical: false },
+    razersynapse: { d: 'Панель управления периферией Razer Synapse', critical: false },
+    lghub: { d: 'Панель управления периферией Logitech G HUB', critical: false },
+    realtekaudiouniversalservice: { d: 'Драйвер звука Realtek', critical: false },
+    epicgameslauncher: { d: 'Лаунчер игр Epic Games', critical: false },
+    battlenet: { d: 'Лаунчер игр Battle.net', critical: false },
+    riotclientservices: { d: 'Клиент игр Riot Games', critical: false },
+    origin: { d: 'Лаунчер игр EA Origin', critical: false },
+    upc: { d: 'Лаунчер игр Ubisoft Connect', critical: false },
+    creativecloud: { d: 'Adobe Creative Cloud - менеджер приложений Adobe', critical: false },
+    photoshop: { d: 'Adobe Photoshop', critical: false },
+    premierepro: { d: 'Adobe Premiere Pro - монтаж видео', critical: false },
+    unityhub: { d: 'Менеджер версий Unity Hub', critical: false },
+    'docker desktop': { d: 'Docker Desktop - контейнеры для разработки', critical: false },
+    com: { d: 'Docker/WSL внутренний процесс', critical: false },
+    vmmem: { d: 'Виртуальная машина WSL2 / Hyper-V - потребляет память по требованию', critical: false },
+    vboxheadless: { d: 'Виртуальная машина VirtualBox', critical: false },
+    'vmware-vmx': { d: 'Виртуальная машина VMware', critical: false },
+    zoom: { d: 'Видеоконференции Zoom', critical: false },
+    slack: { d: 'Корпоративный мессенджер Slack', critical: false },
+    notion: { d: 'Заметки и база знаний Notion', critical: false },
+    figma: { d: 'Дизайн-инструмент Figma', critical: false },
+    postman: { d: 'Инструмент тестирования API Postman', critical: false },
+    git: { d: 'Система контроля версий Git', critical: false },
+    python: { d: 'Интерпретатор Python', critical: false },
+    java: { d: 'Виртуальная машина Java', critical: false },
+    javaw: { d: 'Виртуальная машина Java (без консоли)', critical: false }
   };
+
+  // Row/metric highlighting thresholds - purely visual, informational only.
+  const HEAVY_CPU_THRESHOLD = 25;
+  const HEAVY_MEM_MB_THRESHOLD = 800;
 
   // ---- helpers ------------------------------------------------------------
   function $(sel, root) {
@@ -500,10 +539,20 @@
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = 'Очистка...';
+
+    const progressCard = $('#ramProgressCard');
+    const progressLog = $('#ramProgressLog');
+    progressLog.innerHTML = '';
+    progressCard.classList.remove('hidden');
+    appendRamProgress('Освобождение списка ожидания...');
+
     try {
       const info = await call(window.neuroboost.ram.purge());
       renderRam(info);
       updateOverviewRam(info);
+      appendRamProgress(
+        'Готово: освобождено ' + info.freedGB.toFixed(2) + ' ГБ, обработано процессов: ' + info.trimmedCount
+      );
       showToast('success', 'Освобождено ' + info.freedGB.toFixed(2) + ' ГБ \u00b7 очищено процессов: ' + info.trimmedCount);
     } catch (err) {
       showError('Не удалось очистить память: ' + err.message);
@@ -513,11 +562,37 @@
     }
   }
 
+  function appendRamProgress(text) {
+    const log = $('#ramProgressLog');
+    const line = document.createElement('div');
+    line.textContent = '\u2713 ' + text;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function wireRamProgress() {
+    window.neuroboost.ram.onProgress((event) => {
+      if (event.event === 'standby') {
+        appendRamProgress(
+          event.status === 'purged' ? 'Список ожидания освобождён' : 'Список ожидания: пропущено (недостаточно прав)'
+        );
+      } else if (event.event === 'trim') {
+        appendRamProgress('Очищен рабочий набор: ' + event.name + '.exe');
+      }
+    });
+  }
+
   // ---- processes --------------------------------------------------------
-  function processTooltip(name) {
-    const info = PROCESS_INFO[name.toLowerCase()];
-    if (!info) return '';
-    return (info.critical ? '\u26a0\ufe0f Критический системный процесс. ' : '') + info.d;
+  function processTooltip(p) {
+    const info = PROCESS_INFO[p.name.toLowerCase()];
+    if (info) {
+      return (info.critical ? '\u26a0\ufe0f Критический системный процесс. ' : '') + info.d;
+    }
+    // Fallback for anything not in the dictionary: the executable path is
+    // still genuinely useful (e.g. "...AppData\Local\Discord\..." tells you
+    // what it is even if the name itself doesn't), so every row gets some
+    // tooltip rather than only the ~60 processes we recognize by name.
+    return p.path ? 'Путь: ' + p.path : 'Процесс: ' + p.name + '.exe (нет описания в базе)';
   }
 
   async function refreshProcesses() {
@@ -548,7 +623,7 @@
     body.innerHTML = '';
 
     if (procs.length === 0) {
-      body.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-500 text-sm">Ничего не найдено</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm">Ничего не найдено</td></tr>';
       return;
     }
 
@@ -561,19 +636,30 @@
         .join('');
 
       const info = PROCESS_INFO[p.name.toLowerCase()];
-      const nameClass = info && info.critical ? 'text-warn' : 'text-slate-200';
-      const tooltip = processTooltip(p.name);
+      const isCritical = !!(info && info.critical);
+      const isHeavy = p.cpuPercent >= HEAVY_CPU_THRESHOLD || p.memoryMB >= HEAVY_MEM_MB_THRESHOLD;
+      const nameClass = isCritical ? 'text-warn' : isHeavy ? 'text-danger' : 'text-slate-200';
+      const tooltip = processTooltip(p);
+      const cpuClass = p.cpuPercent >= HEAVY_CPU_THRESHOLD ? 'text-danger font-semibold' : '';
+      const memClass = p.memoryMB >= HEAVY_MEM_MB_THRESHOLD ? 'text-danger font-semibold' : '';
+
+      const killBtn = isCritical
+        ? '<span class="text-[11px] text-slate-600" title="Критический процесс - завершение недоступно">-</span>'
+        : '<button data-kill-pid="' + p.pid + '" data-kill-name="' + escapeHtml(p.name) + '" class="text-[11px] px-2 py-1 rounded-md border border-danger/30 text-danger hover:bg-danger/10 transition-colors" type="button">Завершить</button>';
 
       tr.innerHTML =
-        '<td class="p-4 ' + nameClass + '"' + (tooltip ? ' title="' + escapeHtml(tooltip) + '"' : '') + '>' + escapeHtml(p.name) + '</td>' +
+        '<td class="p-4 ' + nameClass + '" title="' + escapeHtml(tooltip) + '">' +
+        escapeHtml(p.name) + (isHeavy && !isCritical ? ' <span class="nb-pill nb-pill-danger ml-1">высокая нагрузка</span>' : '') +
+        '</td>' +
         '<td class="p-4 nb-mono text-slate-500">' + p.pid + '</td>' +
-        '<td class="p-4 nb-mono">' + p.cpuPercent.toFixed(1) + '%</td>' +
-        '<td class="p-4 nb-mono">' + p.memoryMB.toFixed(0) + ' МБ</td>' +
+        '<td class="p-4 nb-mono ' + cpuClass + '">' + p.cpuPercent.toFixed(1) + '%</td>' +
+        '<td class="p-4 nb-mono ' + memClass + '">' + p.memoryMB.toFixed(0) + ' МБ</td>' +
         '<td class="p-4 text-right">' +
         '<select data-pid="' + p.pid + '" class="bg-neuro-800 border border-white/10 rounded-md px-2 py-1 text-[12px] text-slate-200">' +
         options +
         '</select>' +
-        '</td>';
+        '</td>' +
+        '<td class="p-4 text-right">' + killBtn + '</td>';
       body.appendChild(tr);
     });
 
@@ -589,6 +675,26 @@
         }
       });
     });
+
+    $all('button[data-kill-pid]', body).forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const pid = Number(btn.dataset.killPid);
+        const name = btn.dataset.killName;
+        const confirmed = window.confirm(
+          'Завершить процесс "' + name + '.exe" (PID ' + pid + ')?\n\nНесохранённые данные в этой программе будут потеряны.'
+        );
+        if (!confirmed) return;
+        btn.disabled = true;
+        try {
+          await call(window.neuroboost.process.kill(pid, name));
+          showToast('success', 'Процесс ' + name + '.exe завершён');
+          refreshProcesses();
+        } catch (err) {
+          showError('Не удалось завершить процесс: ' + err.message);
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
   function wireProcessSearch() {
@@ -599,6 +705,9 @@
 
   function wireAutoBoost() {
     const toggle = $('#autoBoostToggle');
+    const statusBox = $('#autoBoostStatus');
+    const statusText = $('#autoBoostStatusText');
+
     toggle.addEventListener('change', async () => {
       if (toggle.dataset.busy === '1') return;
       toggle.dataset.busy = '1';
@@ -607,11 +716,14 @@
         if (wantRunning) {
           await call(window.neuroboost.process.autoBoostStart({ intervalMs: 8000 }));
           state.autoBoostRunning = true;
-          showToast('success', 'Авто-ускорение включено');
+          statusBox.classList.remove('hidden');
+          statusText.textContent = 'Мониторинг нагрузки...';
+          showToast('success', 'Авто-ускорение включено \u2014 проверка каждые 8 секунд');
         } else {
           await call(window.neuroboost.process.autoBoostStop());
           state.autoBoostRunning = false;
-          showToast('info', 'Авто-ускорение выключено');
+          statusBox.classList.add('hidden');
+          showToast('info', 'Авто-ускорение выключено, приоритеты возвращены');
         }
       } catch (err) {
         toggle.checked = !wantRunning;
@@ -625,8 +737,20 @@
       const log = $('#autoBoostLog');
       const line = document.createElement('div');
       const time = new Date().toLocaleTimeString();
+
       if (event.type === 'boosted') {
-        line.textContent = '[' + time + '] Повышен приоритет: ' + event.name + ' (PID ' + event.pid + ') \u2192 Высокий';
+        line.textContent = '[' + time + '] Повышен приоритет: ' + event.name + '.exe (' + event.cpuPercent.toFixed(0) + '% ЦП) \u2192 Высокий';
+        statusText.innerHTML = '\u26a1 Ускоряется: <span class="text-cyan font-medium">' + escapeHtml(event.name) + '.exe</span> (' + event.cpuPercent.toFixed(0) + '% ЦП)';
+        showToast('success', 'Авто-ускорение: ' + event.name + '.exe \u2192 Высокий приоритет');
+        if (state.view === 'processes') refreshProcesses();
+      } else if (event.type === 'holding') {
+        statusText.innerHTML = '\u26a1 Ускорено: <span class="text-cyan font-medium">' + escapeHtml(event.name) + '.exe</span> (' + event.cpuPercent.toFixed(0) + '% ЦП)';
+        return; // no log line - this fires every tick while steady, would spam the log
+      } else if (event.type === 'idle') {
+        statusText.textContent = event.topName
+          ? 'Нагрузка в норме (максимум: ' + event.topName + '.exe, ' + event.topCpu.toFixed(0) + '% ЦП)'
+          : 'Нагрузка в норме';
+        return; // routine status, not worth a log line every tick
       } else if (event.type === 'error') {
         line.textContent = '[' + time + '] ' + event.message;
         line.classList.add('text-danger');
@@ -644,6 +768,7 @@
     wireSelectAll();
     wireHeroBoost();
     wireProcessSearch();
+    wireRamProgress();
 
     $('#debloatRemoveBtn').addEventListener('click', runDebloatRemoval);
     $('#debloatRescanBtn').addEventListener('click', loadDebloatCatalog);

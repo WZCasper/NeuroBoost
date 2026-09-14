@@ -9,22 +9,19 @@
      "EmptyStandbyList" utility. Requires an elevated process.
 
   2) Trims the working set of eligible running processes via the documented
-     psapi.dll EmptyWorkingSet function. This is the part that actually
-     moves the "used memory" number: Windows already counts standby pages as
-     "available", but a process's working set is memory it is visibly
-     holding onto, and EmptyWorkingSet forces it to give back pages it is
-     not actively using right now. Any page a process still needs gets
-     paged back in automatically and transparently on next access - this
-     cannot cause data loss or crash anything, it's the same mechanism
-     Windows itself uses under memory pressure.
+     psapi.dll EmptyWorkingSet function - this is the part that actually
+     moves the "used memory" number, since Windows already counts standby
+     pages as "available". Any page a process still needs gets paged back
+     in automatically on next access - this cannot cause data loss.
 
   Neither action closes an application, touches the pagefile, or deletes
-  any file. A handful of protected/system processes are skipped outright;
-  everything else that fails to open is silently skipped rather than
-  treated as an error, since many processes cannot be opened even by an
-  Administrator (a different user's session, a protected process, etc).
+  any file.
 
-  Returns JSON: { standbyPurged: bool, trimmedCount: int, trimmedNames: [...] }
+  OUTPUT FORMAT: one compact JSON object per line, written as work happens
+  (not buffered until the end), so the caller can show live progress:
+    {"event":"standby","status":"purged"}       - once, near the start
+    {"event":"trim","name":"chrome"}             - once per process trimmed
+    {"event":"summary","standbyPurged":true,...} - once, the final line
 #>
 [CmdletBinding()]
 param()
@@ -117,11 +114,14 @@ try {
   }
 }
 catch {
-  # Non-fatal: still proceed to working-set trimming below.
   $standbyPurged = $false
 }
 
-# --- Part 2: trim working sets of eligible processes ----------------------
+[pscustomobject]@{ event = 'standby'; status = $(if ($standbyPurged) { 'purged' } else { 'skipped' }) } |
+  ConvertTo-Json -Compress
+[Console]::Out.Flush()
+
+# --- Part 2: trim working sets of eligible processes, reporting each one --
 $PROCESS_SET_QUOTA = 0x0100
 $PROCESS_QUERY_INFORMATION = 0x0400
 $excludeNames = @('System', 'Idle', 'Registry', 'Secure System', 'Memory Compression', 'csrss', 'wininit', 'services', 'lsass', 'smss', 'winlogon', 'NeuroBoost')
@@ -141,6 +141,8 @@ Get-Process | Where-Object {
       try {
         if ([NeuroBoostMemory]::EmptyWorkingSet($handle)) {
           $trimmedNames.Add($_.ProcessName)
+          [pscustomobject]@{ event = 'trim'; name = $_.ProcessName } | ConvertTo-Json -Compress
+          [Console]::Out.Flush()
         }
       }
       finally {
@@ -154,6 +156,7 @@ Get-Process | Where-Object {
 }
 
 $output = [pscustomobject]@{
+  event         = 'summary'
   standbyPurged = $standbyPurged
   trimmedCount  = $trimmedNames.Count
   trimmedNames  = $trimmedNames

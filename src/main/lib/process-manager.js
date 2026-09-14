@@ -8,7 +8,7 @@ const { scriptsDir } = require('./paths');
 // TotalProcessorTime delta), NOT from Win32_PerfFormattedData_PerfProc_Process.
 // The WMI performance-counter provider is a well-known source of multi-second
 // stalls (and outright hangs) on real-world machines whose perf counters are
-// stale or corrupted — Get-Process itself is a plain, fast .NET call with no
+// stale or corrupted - Get-Process itself is a plain, fast .NET call with no
 // such dependency. Every per-process property read is wrapped in try/catch:
 // a handful of protected/system processes throw "Access is denied" on
 // .PriorityClass or .TotalProcessorTime even for an elevated caller, and one
@@ -59,9 +59,20 @@ ConvertTo-Json -InputObject $result -Compress -Depth 4
 
 const ALLOWED_PRIORITIES = ['Idle', 'BelowNormal', 'Normal', 'AboveNormal', 'High'];
 
+// Never killable and never auto-boosted as a "generic heavy process" target -
+// core OS/security processes. This is the actual safety boundary for
+// process:kill, checked server-side regardless of what the renderer sends.
+const CRITICAL_NAMES = new Set([
+  'system', 'idle', 'registry', 'csrss', 'wininit', 'winlogon', 'services',
+  'lsass', 'smss', 'secure system', 'memory compression', 'svchost', 'dwm',
+  'explorer', 'securityhealthservice', 'msmpeng', 'nissrv', 'neuroboost'
+]);
+
 // Executables treated as "heavy foreground" workloads worth boosting when
 // auto-boost is on. Matched case-insensitively against the process name
-// (without .exe, as PowerShell's ProcessName already strips it).
+// (without .exe, as PowerShell's ProcessName already strips it). Checked
+// first, before the generic top-CPU fallback below, so a known game/
+// renderer always wins even if something else briefly spikes higher.
 const HEAVY_APP_NAMES = new Set([
   'obs64',
   'obs32',
@@ -83,7 +94,7 @@ const HEAVY_APP_NAMES = new Set([
 ]);
 
 // Background processes safe to gently deprioritize during a boost session.
-// Deliberately conservative — never system, security, or driver processes.
+// Deliberately conservative - never system, security, or driver processes.
 const DEPRIORITIZE_NAMES = new Set([
   'onedrive',
   'searchindexer',
@@ -96,8 +107,12 @@ const DEPRIORITIZE_NAMES = new Set([
   'msedge'
 ]);
 
+// Minimum CPU% for a process to be considered a "generic heavy process"
+// worth boosting when nothing from HEAVY_APP_NAMES is running.
+const GENERIC_BOOST_CPU_THRESHOLD = 25;
+
 let autoBoostTimer = null;
-let autoBoostAdjusted = new Map(); // pid -> priority we bumped it from
+let autoBoostTarget = null; // { pid, name } currently boosted to High, or null
 
 // A manual "Refresh" click and auto-boost's own polling loop can land at the
 // same time; without this guard they'd spawn two concurrent powershell.exe
@@ -133,7 +148,7 @@ async function listProcesses() {
 
 async function setProcessPriority(pid, priority) {
   if (!ALLOWED_PRIORITIES.includes(priority)) {
-    // RealTime is intentionally excluded — it can starve input/audio
+    // RealTime is intentionally excluded - it can starve input/audio
     // drivers and hang the system, which conflicts with "safe optimizer".
     throw new Error(`Priority must be one of: ${ALLOWED_PRIORITIES.join(', ')}`);
   }
@@ -142,31 +157,83 @@ async function setProcessPriority(pid, priority) {
   return { pid, priority };
 }
 
+/**
+ * Ends a process. Re-validates the name against CRITICAL_NAMES itself
+ * (never trusts a flag the renderer sends), so this can never be used to
+ * kill a core OS/security process even if the UI were tricked into
+ * offering it. Uses Node's own process.kill rather than another
+ * powershell.exe spawn, since no registry/privileged API access is needed.
+ */
+async function killProcess(pid, name) {
+  const lower = (name || '').toLowerCase();
+  if (CRITICAL_NAMES.has(lower)) {
+    throw new Error(`Отказ: "${name}" - критический системный процесс.`);
+  }
+  if (!pid || pid <= 4) {
+    throw new Error('Недопустимый PID.');
+  }
+  try {
+    process.kill(pid);
+  } catch (err) {
+    throw new Error(err && err.message ? err.message : String(err));
+  }
+  return { pid, killed: true };
+}
+
+function pickBoostTarget(procs) {
+  const heavy = procs.find((p) => HEAVY_APP_NAMES.has(p.name.toLowerCase()));
+  if (heavy) return heavy;
+  return procs.find((p) => p.cpuPercent >= GENERIC_BOOST_CPU_THRESHOLD && !CRITICAL_NAMES.has(p.name.toLowerCase()));
+}
+
 async function startAutoBoost(options = {}, onEvent) {
   if (autoBoostTimer) return { running: true };
 
   const intervalMs = Math.max(options.intervalMs || 8000, 3000);
 
-  autoBoostTimer = setInterval(async () => {
+  const tick = async () => {
     try {
       const procs = await listProcesses();
-      const heavy = procs.find((p) => HEAVY_APP_NAMES.has(p.name.toLowerCase()));
+      const target = pickBoostTarget(procs);
 
-      if (heavy && heavy.priority !== 'High' && heavy.priority !== 'RealTime') {
-        await setProcessPriority(heavy.pid, 'High');
-        autoBoostAdjusted.set(heavy.pid, 'Normal');
-        if (onEvent) onEvent({ type: 'boosted', name: heavy.name, pid: heavy.pid });
+      if (target) {
+        if (autoBoostTarget && autoBoostTarget.pid !== target.pid) {
+          // Focus moved to a different heavy process - relax the old one.
+          await setProcessPriority(autoBoostTarget.pid, 'Normal').catch(() => {});
+        }
+
+        if (target.priority !== 'High' && target.priority !== 'RealTime') {
+          await setProcessPriority(target.pid, 'High');
+          if (onEvent) {
+            onEvent({ type: 'boosted', name: target.name, pid: target.pid, cpuPercent: target.cpuPercent });
+          }
+        } else if (onEvent) {
+          onEvent({ type: 'holding', name: target.name, pid: target.pid, cpuPercent: target.cpuPercent });
+        }
+        autoBoostTarget = { pid: target.pid, name: target.name };
 
         for (const p of procs) {
-          if (DEPRIORITIZE_NAMES.has(p.name.toLowerCase()) && p.priority === 'Normal') {
+          if (DEPRIORITIZE_NAMES.has(p.name.toLowerCase()) && p.priority === 'Normal' && p.pid !== target.pid) {
             await setProcessPriority(p.pid, 'BelowNormal').catch(() => {});
           }
+        }
+      } else {
+        if (autoBoostTarget) {
+          await setProcessPriority(autoBoostTarget.pid, 'Normal').catch(() => {});
+          autoBoostTarget = null;
+        }
+        const top = procs[0];
+        if (onEvent) {
+          onEvent({ type: 'idle', topName: top ? top.name : null, topCpu: top ? top.cpuPercent : 0 });
         }
       }
     } catch (err) {
       if (onEvent) onEvent({ type: 'error', message: err.message });
     }
-  }, intervalMs);
+  };
+
+  autoBoostTimer = setInterval(tick, intervalMs);
+  tick(); // run once immediately instead of waiting for the first interval
 
   return { running: true };
 }
@@ -176,11 +243,11 @@ async function stopAutoBoost() {
     clearInterval(autoBoostTimer);
     autoBoostTimer = null;
   }
-  for (const [pid] of autoBoostAdjusted) {
-    await setProcessPriority(pid, 'Normal').catch(() => {});
+  if (autoBoostTarget) {
+    await setProcessPriority(autoBoostTarget.pid, 'Normal').catch(() => {});
+    autoBoostTarget = null;
   }
-  autoBoostAdjusted.clear();
   return { running: false };
 }
 
-module.exports = { listProcesses, setProcessPriority, startAutoBoost, stopAutoBoost };
+module.exports = { listProcesses, setProcessPriority, killProcess, startAutoBoost, stopAutoBoost, CRITICAL_NAMES };

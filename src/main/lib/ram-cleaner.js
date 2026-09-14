@@ -24,22 +24,43 @@ async function getMemoryInfo() {
  *   2. Trims the working set of eligible running processes (EmptyWorkingSet)
  *      - this is the part that actually moves the "used memory" number,
  *      since Windows already counts standby pages as "available".
+ *
+ * The script streams one JSON line per action *as it happens* (not buffered
+ * until the end); onProgress(event) is called live for each one, so the UI
+ * can show real-time proof of work instead of just a final "Done" message.
  * Returns real before/after memory stats plus how many processes were
- * actually trimmed, so the result is independently checkable rather than
- * just a "Done" message.
+ * actually trimmed.
  */
-async function purgeStandbyList() {
+async function purgeStandbyList(onProgress) {
   const before = await getMemoryInfo();
 
   const scriptPath = path.join(scriptsDir(), 'purge-standby-list.ps1');
-  const raw = await runPowerShellFile(scriptPath, [], 30000);
+  let summary = null;
 
-  let stats = { standbyPurged: false, trimmedCount: 0, trimmedNames: [] };
-  try {
-    stats = JSON.parse(raw.trim());
-  } catch (_) {
-    // Keep the defaults above - the memory stats below are still real
-    // and useful even if this specific parse failed.
+  const raw = await runPowerShellFile(scriptPath, [], 30000, (line) => {
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch (_) {
+      return; // ignore any non-JSON stray output line
+    }
+    if (event.event === 'summary') {
+      summary = event;
+    } else if (onProgress) {
+      onProgress(event);
+    }
+  });
+
+  let stats = summary;
+  if (!stats) {
+    // Fallback in case streaming missed the summary line for any reason -
+    // the full buffered stdout still has it as the last line.
+    try {
+      const lines = raw.trim().split('\n').filter(Boolean);
+      stats = JSON.parse(lines[lines.length - 1]);
+    } catch (_) {
+      stats = { standbyPurged: false, trimmedCount: 0, trimmedNames: [] };
+    }
   }
 
   const after = await getMemoryInfo();
