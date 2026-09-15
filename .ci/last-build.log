@@ -8,7 +8,7 @@
 
 [3m[1m[34m≈[39m[22m[23m tailwindcss [34mv4.3.3[39m
 
-Done in [34m120ms[39m
+Done in [34m110ms[39m
   • electron-builder  version=26.15.3 os=10.0.26100
   • loaded configuration  file=package.json ("build" field)
   • executing @electron/rebuild  electronVersion=44.3.0 arch=x64 buildFromSource=false workspaceRoot=D:\a\NeuroBoost\NeuroBoost projectDir=./ appDir=./
@@ -22,7 +22,6 @@ Done in [34m120ms[39m
   • using manual traversal of node_modules to build dependency tree
   • no node modules returned while searching directories  searchDirectories=[""]
   • updating asar integrity executable resource  executablePath=dist\win-unpacked\NeuroBoost.exe
-  • default Electron icon is used  reason=application icon is not set
   • signing with signtool.exe  path=dist\win-unpacked\NeuroBoost.exe
   • building        target=nsis file=dist\NeuroBoost-Setup-1.0.0.exe archs=x64 oneClick=false perMachine=true
   • downloaded      label=nsis-3.0.4.1.7z progress=100%
