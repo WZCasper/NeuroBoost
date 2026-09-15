@@ -108,8 +108,19 @@ const DEPRIORITIZE_NAMES = new Set([
 ]);
 
 // Minimum CPU% for a process to be considered a "generic heavy process"
-// worth boosting when nothing from HEAVY_APP_NAMES is running.
-const GENERIC_BOOST_CPU_THRESHOLD = 25;
+// worth boosting when nothing from HEAVY_APP_NAMES is running. Mutable -
+// see setAutoBoostConfig, driven by user settings.
+let genericBoostCpuThreshold = 25;
+let customHeavyAppNames = new Set();
+
+function setAutoBoostConfig({ cpuThreshold, customHeavyApps } = {}) {
+  if (typeof cpuThreshold === 'number' && cpuThreshold > 0 && cpuThreshold <= 100) {
+    genericBoostCpuThreshold = cpuThreshold;
+  }
+  if (Array.isArray(customHeavyApps)) {
+    customHeavyAppNames = new Set(customHeavyApps.map((n) => String(n).trim().toLowerCase()).filter(Boolean));
+  }
+}
 
 let autoBoostTimer = null;
 let autoBoostTarget = null; // { pid, name } currently boosted to High, or null
@@ -181,9 +192,12 @@ async function killProcess(pid, name) {
 }
 
 function pickBoostTarget(procs) {
-  const heavy = procs.find((p) => HEAVY_APP_NAMES.has(p.name.toLowerCase()));
+  const heavy = procs.find((p) => {
+    const n = p.name.toLowerCase();
+    return HEAVY_APP_NAMES.has(n) || customHeavyAppNames.has(n);
+  });
   if (heavy) return heavy;
-  return procs.find((p) => p.cpuPercent >= GENERIC_BOOST_CPU_THRESHOLD && !CRITICAL_NAMES.has(p.name.toLowerCase()));
+  return procs.find((p) => p.cpuPercent >= genericBoostCpuThreshold && !CRITICAL_NAMES.has(p.name.toLowerCase()));
 }
 
 async function startAutoBoost(options = {}, onEvent) {
@@ -250,4 +264,4 @@ async function stopAutoBoost() {
   return { running: false };
 }
 
-module.exports = { listProcesses, setProcessPriority, killProcess, startAutoBoost, stopAutoBoost, CRITICAL_NAMES };
+module.exports = { listProcesses, setProcessPriority, killProcess, startAutoBoost, stopAutoBoost, setAutoBoostConfig, CRITICAL_NAMES };

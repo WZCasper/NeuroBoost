@@ -30,7 +30,8 @@
       "!**/*.map"
     ],
     "extraResources": [
-      { "from": "resources/scripts", "to": "scripts" }
+      { "from": "resources/scripts", "to": "scripts" },
+      { "from": "resources/tray-icon.png", "to": "tray-icon.png" }
     ],
     "directories": {
       "output": "dist",

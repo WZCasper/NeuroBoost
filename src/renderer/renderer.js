@@ -14,7 +14,11 @@
     },
     telemetryCustomized: false,
     autoBoostRunning: false,
-    allProcesses: []
+    allProcesses: [],
+    startupItems: [],
+    diskCategories: [],
+    diskSelected: new Set(),
+    settings: null
   };
 
   const PAGE_TITLES = {
@@ -22,7 +26,10 @@
     debloat: 'Управление приложениями',
     telemetry: 'Телеметрия и конфиденциальность',
     ram: 'Оптимизация памяти',
-    processes: 'Диспетчер процессов'
+    processes: 'Диспетчер процессов',
+    startup: 'Автозагрузка',
+    disk: 'Очистка диска',
+    settings: 'Настройки'
   };
 
   // Priority values are sent to the backend/PowerShell as-is (they are
@@ -215,6 +222,8 @@
     $('#page-title').textContent = PAGE_TITLES[view] || view;
 
     if (view === 'processes') refreshProcesses();
+    if (view === 'startup' && state.startupItems.length === 0) loadStartupItems();
+    if (view === 'disk' && state.diskCategories.length === 0) loadDiskCategories();
   }
 
   function wireNav() {
@@ -420,10 +429,13 @@
     progressEl.innerHTML = '';
 
     try {
-      const results = await call(window.neuroboost.debloat.remove(ids));
+      const { results, restorePoint } = await call(window.neuroboost.debloat.remove(ids));
       results.forEach((r) => appendDebloatProgress(r));
       const removed = results.filter((r) => r.status === 'removed').length;
       showToast('success', 'Удалено приложений: ' + removed + ' из ' + results.length);
+      if (restorePoint && restorePoint.created) {
+        showToast('info', 'Перед изменениями создана точка восстановления Windows');
+      }
       await loadDebloatCatalog();
     } catch (err) {
       showError('Ошибка при удалении приложений: ' + err.message);
@@ -488,6 +500,9 @@
       } else {
         $('#telemetryStatusText').textContent = 'Настроено \u00b7 применено: ' + result.changed;
         showToast('success', 'Настройки телеметрии применены (' + result.changed + ')');
+      }
+      if (result.restorePoint && result.restorePoint.created) {
+        showToast('info', 'Перед изменениями создана точка восстановления Windows');
       }
     } catch (err) {
       showError('Не удалось применить настройки телеметрии: ' + err.message);
@@ -760,6 +775,244 @@
     });
   }
 
+  // scan-disk.ps1 returns plain-ASCII ids only (same reasoning as the
+  // telemetry keys) - labels live here.
+  const DISK_CATEGORY_LABELS = {
+    temp_user: 'Временные файлы пользователя',
+    temp_system: 'Временные файлы Windows',
+    recycle_bin: 'Корзина',
+    update_cache: 'Кэш центра обновления Windows',
+    delivery_opt: 'Кэш оптимизации доставки',
+    error_reports: 'Отчёты об ошибках Windows',
+    chrome_cache: 'Кэш браузера Chrome',
+    edge_cache: 'Кэш браузера Edge'
+  };
+
+  // ---- helpers: bytes formatting -----------------------------------------
+  function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0 МБ';
+    const mb = bytes / 1024 / 1024;
+    if (mb >= 1024) return (mb / 1024).toFixed(2) + ' ГБ';
+    return mb.toFixed(0) + ' МБ';
+  }
+
+  // ---- startup ------------------------------------------------------------
+  async function loadStartupItems() {
+    const list = $('#startupList');
+    list.innerHTML = '<div class="py-6 text-center text-[12px] text-slate-500">Сканирование автозагрузки...</div>';
+    try {
+      const items = await call(window.neuroboost.startup.list());
+      state.startupItems = items;
+      renderStartupList();
+    } catch (err) {
+      list.innerHTML = '';
+      showError('Не удалось получить список автозагрузки: ' + err.message);
+    }
+  }
+
+  function renderStartupList() {
+    const list = $('#startupList');
+    list.innerHTML = '';
+
+    if (state.startupItems.length === 0) {
+      list.innerHTML = '<div class="py-6 text-center text-[12px] text-slate-500">Программ в автозагрузке не найдено.</div>';
+      return;
+    }
+
+    state.startupItems.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'glass-card rounded-xl p-4 flex items-center gap-4';
+      row.innerHTML =
+        '<div class="flex-1 min-w-0">' +
+        '<div class="text-[13px] text-slate-200 truncate">' + escapeHtml(item.name) + '</div>' +
+        '<div class="text-[11px] text-slate-500 truncate font-mono" title="' + escapeHtml(item.command) + '">' + escapeHtml(item.command) + '</div>' +
+        '</div>' +
+        '<div class="relative inline-block w-11 h-6 shrink-0">' +
+        '<input type="checkbox" id="su-' + escapeHtml(item.id) + '" class="nb-toggle-input" data-startup-id="' + escapeHtml(item.id) + '"' + (item.enabled ? ' checked' : '') + ' />' +
+        '<label for="su-' + escapeHtml(item.id) + '" class="nb-toggle-label"></label>' +
+        '</div>';
+      list.appendChild(row);
+    });
+
+    $all('input[data-startup-id]', list).forEach((input) => {
+      input.addEventListener('change', async () => {
+        const id = input.dataset.startupId;
+        const enabled = input.checked;
+        input.disabled = true;
+        try {
+          await call(window.neuroboost.startup.toggle(id, enabled));
+          showToast('success', enabled ? 'Включено в автозагрузке' : 'Отключено из автозагрузки');
+        } catch (err) {
+          input.checked = !enabled;
+          showError('Не удалось изменить автозагрузку: ' + err.message);
+        } finally {
+          input.disabled = false;
+        }
+      });
+    });
+  }
+
+  // ---- disk cleanup ---------------------------------------------------------
+  async function loadDiskCategories() {
+    const list = $('#diskList');
+    list.innerHTML = '<div class="col-span-2 py-6 text-center text-[12px] text-slate-500">Подсчёт размера временных файлов...</div>';
+    try {
+      const categories = await call(window.neuroboost.disk.scan());
+      state.diskCategories = categories;
+      state.diskSelected.clear();
+      renderDiskList();
+      updateDiskCleanButton();
+    } catch (err) {
+      list.innerHTML = '';
+      showError('Не удалось просканировать диск: ' + err.message);
+    }
+  }
+
+  function renderDiskList() {
+    const list = $('#diskList');
+    list.innerHTML = '';
+
+    state.diskCategories.forEach((cat) => {
+      const card = document.createElement('label');
+      card.className = 'glass-card rounded-xl p-4 flex items-center gap-3 cursor-pointer';
+      card.innerHTML =
+        '<span class="flex-1 min-w-0">' +
+        '<span class="block text-[13px] text-slate-200">' + escapeHtml(DISK_CATEGORY_LABELS[cat.id] || cat.id) + '</span>' +
+        '<span class="block text-[12px] text-cyan nb-mono mt-0.5">' + formatBytes(cat.sizeBytes) + '</span>' +
+        '</span>' +
+        '<input type="checkbox" class="h-4 w-4 accent-cyan shrink-0" data-disk-id="' + escapeHtml(cat.id) + '" ' + (cat.sizeBytes > 0 ? '' : 'disabled') + ' />';
+      list.appendChild(card);
+    });
+
+    $all('input[data-disk-id]', list).forEach((cb) => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) state.diskSelected.add(cb.dataset.diskId);
+        else state.diskSelected.delete(cb.dataset.diskId);
+        updateDiskCleanButton();
+      });
+    });
+  }
+
+  function updateDiskCleanButton() {
+    const selectedBytes = state.diskCategories
+      .filter((c) => state.diskSelected.has(c.id))
+      .reduce((sum, c) => sum + c.sizeBytes, 0);
+    $('#diskCleanBtn').disabled = state.diskSelected.size === 0;
+    $('#diskSelectedSize').textContent = state.diskSelected.size > 0 ? 'Будет освобождено: ' + formatBytes(selectedBytes) : '';
+  }
+
+  function diskCategoryName(id) {
+    return DISK_CATEGORY_LABELS[id] || id;
+  }
+
+  async function runDiskClean() {
+    const ids = Array.from(state.diskSelected);
+    if (ids.length === 0) return;
+
+    const btn = $('#diskCleanBtn');
+    btn.disabled = true;
+    const progressCard = $('#diskProgressCard');
+    const progressLog = $('#diskProgressLog');
+    progressLog.innerHTML = '';
+    progressCard.classList.remove('hidden');
+
+    try {
+      const summary = await call(window.neuroboost.disk.clean(ids));
+      showToast('success', 'Освобождено: ' + formatBytes(summary.freedBytes));
+      await loadDiskCategories();
+    } catch (err) {
+      showError('Не удалось очистить диск: ' + err.message);
+    } finally {
+      btn.disabled = state.diskSelected.size === 0;
+    }
+  }
+
+  function wireDiskProgress() {
+    window.neuroboost.disk.onProgress((event) => {
+      if (event.event === 'category') {
+        const line = document.createElement('div');
+        line.textContent = '\u2713 ' + diskCategoryName(event.id) + ': освобождено ' + formatBytes(event.freedBytes);
+        $('#diskProgressLog').appendChild(line);
+      }
+    });
+  }
+
+  // ---- settings ------------------------------------------------------------
+  async function loadSettings() {
+    try {
+      const settings = await call(window.neuroboost.settings.get());
+      state.settings = settings;
+      renderSettings();
+    } catch (err) {
+      showError('Не удалось загрузить настройки: ' + err.message);
+    }
+  }
+
+  function renderSettings() {
+    const s = state.settings;
+    if (!s) return;
+    $('#settingStartWithWindows').checked = !!s.startWithWindows;
+    $('#settingMinimizeToTray').checked = !!s.minimizeToTray;
+    $('#settingCpuThreshold').value = s.autoBoostCpuThreshold;
+    $('#settingCpuThresholdValue').textContent = s.autoBoostCpuThreshold + '%';
+    $('#settingCustomApps').value = (s.customHeavyApps || []).join(', ');
+
+    // Auto-Boost may already be running (e.g. main process auto-started it
+    // on launch because it was on last session) - reflect that here.
+    if (s.autoBoostEnabledOnLaunch) {
+      state.autoBoostRunning = true;
+      $('#autoBoostToggle').checked = true;
+      $('#autoBoostStatus').classList.remove('hidden');
+      $('#autoBoostStatusText').textContent = 'Мониторинг нагрузки...';
+    }
+  }
+
+  function wireSettings() {
+    $('#settingCpuThreshold').addEventListener('input', (e) => {
+      $('#settingCpuThresholdValue').textContent = e.target.value + '%';
+    });
+
+    $('#settingStartWithWindows').addEventListener('change', async (e) => {
+      try {
+        state.settings = await call(window.neuroboost.settings.update({ startWithWindows: e.target.checked }));
+        showToast('success', e.target.checked ? 'Автозапуск с Windows включён' : 'Автозапуск с Windows выключен');
+      } catch (err) {
+        e.target.checked = !e.target.checked;
+        showError('Не удалось сохранить настройку: ' + err.message);
+      }
+    });
+
+    $('#settingMinimizeToTray').addEventListener('change', async (e) => {
+      try {
+        state.settings = await call(window.neuroboost.settings.update({ minimizeToTray: e.target.checked }));
+        showToast('success', 'Настройка сохранена');
+      } catch (err) {
+        e.target.checked = !e.target.checked;
+        showError('Не удалось сохранить настройку: ' + err.message);
+      }
+    });
+
+    $('#settingsSaveBtn').addEventListener('click', async () => {
+      const btn = $('#settingsSaveBtn');
+      btn.disabled = true;
+      try {
+        const threshold = Number($('#settingCpuThreshold').value);
+        const customApps = $('#settingCustomApps').value
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        state.settings = await call(
+          window.neuroboost.settings.update({ autoBoostCpuThreshold: threshold, customHeavyApps: customApps })
+        );
+        showToast('success', 'Настройки Авто-ускорения сохранены');
+      } catch (err) {
+        showError('Не удалось сохранить настройки: ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
   // ---- boot --------------------------------------------------------------
   function init() {
     wireNav();
@@ -769,6 +1022,8 @@
     wireHeroBoost();
     wireProcessSearch();
     wireRamProgress();
+    wireDiskProgress();
+    wireSettings();
 
     $('#debloatRemoveBtn').addEventListener('click', runDebloatRemoval);
     $('#debloatRescanBtn').addEventListener('click', loadDebloatCatalog);
@@ -776,6 +1031,9 @@
     $('#telemetryRestoreBtn').addEventListener('click', restoreTelemetry);
     $('#btn-purge').addEventListener('click', purgeStandbyList);
     $('#processRefreshBtn').addEventListener('click', refreshProcesses);
+    $('#startupRefreshBtn').addEventListener('click', loadStartupItems);
+    $('#diskRescanBtn').addEventListener('click', loadDiskCategories);
+    $('#diskCleanBtn').addEventListener('click', runDiskClean);
 
     window.neuroboost.debloat.onProgress(appendDebloatProgress);
 
@@ -784,6 +1042,7 @@
       loadTelemetryStatus();
       loadOverview();
       loadMemoryInfo();
+      loadSettings();
     });
   }
 

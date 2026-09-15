@@ -43,5 +43,21 @@ contextBridge.exposeInMainWorld('neuroboost', {
     autoBoostStop: () => invoke('process:autoBoostStop'),
     onAutoBoostEvent: (cb) => subscribe('process:autoBoostEvent', cb)
   },
+  startup: {
+    list: () => invoke('startup:list'),
+    toggle: (id, enabled) => invoke('startup:toggle', id, enabled)
+  },
+  disk: {
+    scan: () => invoke('disk:scan'),
+    clean: (categoryIds) => invoke('disk:clean', categoryIds),
+    onProgress: (cb) => subscribe('disk:progress', cb)
+  },
+  restorePoint: {
+    create: (description) => invoke('restorePoint:create', description)
+  },
+  settings: {
+    get: () => invoke('settings:get'),
+    update: (partial) => invoke('settings:update', partial)
+  },
   openExternal: (url) => invoke('app:openExternal', url)
 });

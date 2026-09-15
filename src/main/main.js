@@ -1,37 +1,47 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, Notification } = require('electron');
 const path = require('path');
 
 const isDev = !app.isPackaged;
 
 // ---------------------------------------------------------------------------
-// Single instance lock — a system-modifying tool must never run twice.
+// Single instance lock - a system-modifying tool must never run twice.
 // ---------------------------------------------------------------------------
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    const win = BrowserWindow.getAllWindows()[0];
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
+    if (mainWindow) {
+      mainWindow.show();
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
     }
   });
 }
 
 let mainWindow = null;
+let tray = null;
+let isQuitting = false;
+let autoBoostRunningForTray = false;
 
-function createWindow() {
+function trayIconPath() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'tray-icon.png')
+    : path.join(__dirname, '..', '..', 'resources', 'tray-icon.png');
+}
+
+function createWindow(startHidden) {
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 760,
     minWidth: 980,
     minHeight: 640,
-    backgroundColor: '#0c1016',
+    backgroundColor: '#070b14',
     autoHideMenuBar: true,
     title: 'NeuroBoost',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -43,13 +53,71 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
+  mainWindow.once('ready-to-show', () => {
+    if (!startHidden) mainWindow.show();
+  });
+
   if (isDev) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
+  // Minimize to tray instead of quitting on the X button - the whole point
+  // of Auto-Boost and the tray is that NeuroBoost keeps working in the
+  // background. A real quit only happens via the tray menu's "Выход".
+  mainWindow.on('close', (event) => {
+    const { getSettings } = require('./lib/settings');
+    if (!isQuitting && getSettings().minimizeToTray) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+}
+
+function showMainWindow() {
+  if (!mainWindow) {
+    createWindow(false);
+    return;
+  }
+  mainWindow.show();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+}
+
+function updateTrayMenu() {
+  if (!tray) return;
+  const menu = Menu.buildFromTemplate([
+    { label: 'Открыть NeuroBoost', click: showMainWindow },
+    { type: 'separator' },
+    {
+      label: autoBoostRunningForTray ? 'Авто-ускорение: включено' : 'Авто-ускорение: выключено',
+      enabled: false
+    },
+    { type: 'separator' },
+    {
+      label: 'Выход',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
+    }
+  ]);
+  tray.setContextMenu(menu);
+}
+
+function createTray() {
+  try {
+    tray = new Tray(trayIconPath());
+    tray.setToolTip('NeuroBoost');
+    tray.on('click', showMainWindow);
+    updateTrayMenu();
+  } catch (err) {
+    // Non-fatal - the app is fully usable without a tray icon.
+    console.error('Tray creation failed:', err.message);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +137,7 @@ async function verifyElevationOrWarn() {
   if (!elevated) {
     await dialog.showMessageBox({
       type: 'warning',
-      title: 'NeuroBoost — требуются права администратора',
+      title: 'NeuroBoost - требуются права администратора',
       message: 'NeuroBoost требуются права администратора для чтения и изменения системных настроек.',
       detail:
         'Большинство действий не будут работать без них. Закройте это окно, откройте ' +
@@ -83,20 +151,45 @@ async function verifyElevationOrWarn() {
 app.whenReady().then(async () => {
   await verifyElevationOrWarn();
   registerIpcHandlers();
-  createWindow();
+  createTray();
+
+  const { getSettings } = require('./lib/settings');
+  const settings = getSettings();
+
+  if (process.platform === 'win32') {
+    app.setLoginItemSettings({ openAtLogin: !!settings.startWithWindows, path: process.execPath });
+  }
+
+  const wasAutoLaunched = process.platform === 'win32' && app.getLoginItemSettings().wasOpenedAtLogin;
+  createWindow(wasAutoLaunched);
+
+  if (settings.autoBoostEnabledOnLaunch) {
+    const { startAutoBoost, setAutoBoostConfig } = require('./lib/process-manager');
+    setAutoBoostConfig({ cpuThreshold: settings.autoBoostCpuThreshold, customHeavyApps: settings.customHeavyApps });
+    startAutoBoost({ intervalMs: 8000 }, (event) => handleAutoBoostEvent(event));
+    autoBoostRunningForTray = true;
+    updateTrayMenu();
+  }
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(false);
+    else showMainWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  // If we get here at all, the window really did close - either
+  // minimizeToTray is off, or this was a genuine quit via the tray menu
+  // (the `close` handler above is what decides whether closing the window
+  // hides it instead; reaching this event means that didn't happen).
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
 });
 
 app.on('before-quit', () => {
+  isQuitting = true;
   try {
-    // Best-effort: stop any running auto-boost loop and restore priorities.
     const { stopAutoBoost } = require('./lib/process-manager');
     stopAutoBoost();
   } catch (_) {
@@ -104,8 +197,19 @@ app.on('before-quit', () => {
   }
 });
 
+function handleAutoBoostEvent(event) {
+  if (mainWindow) mainWindow.webContents.send('process:autoBoostEvent', event);
+  if (event.type === 'boosted' && Notification.isSupported()) {
+    new Notification({
+      title: 'NeuroBoost \u2014 авто-ускорение',
+      body: event.name + '.exe получил приоритет "Высокий" (' + event.cpuPercent.toFixed(0) + '% ЦП)',
+      silent: true
+    }).show();
+  }
+}
+
 // ---------------------------------------------------------------------------
-// IPC — every handler is wrapped so renderer calls always resolve with a
+// IPC - every handler is wrapped so renderer calls always resolve with a
 // { ok, data } or { ok:false, error } shape instead of throwing across the
 // process boundary.
 // ---------------------------------------------------------------------------
@@ -119,8 +223,13 @@ function registerIpcHandlers() {
     setProcessPriority,
     killProcess,
     startAutoBoost,
-    stopAutoBoost
+    stopAutoBoost,
+    setAutoBoostConfig
   } = require('./lib/process-manager');
+  const { listStartupItems, toggleStartupItem } = require('./lib/startup-manager');
+  const { scanDiskCategories, cleanDiskCategories } = require('./lib/disk-cleaner');
+  const { createRestorePoint } = require('./lib/restore-point');
+  const { getSettings, updateSettings } = require('./lib/settings');
 
   const safe = (channel, handler) => {
     ipcMain.handle(channel, async (_event, ...args) => {
@@ -141,14 +250,20 @@ function registerIpcHandlers() {
   });
 
   safe('debloat:list', () => listRemovableApps());
-  safe('debloat:remove', (ids) =>
-    removeApps(ids, (progress) => {
+  safe('debloat:remove', async (ids) => {
+    const rp = await createRestorePoint('NeuroBoost - before removing apps');
+    const results = await removeApps(ids, (progress) => {
       if (mainWindow) mainWindow.webContents.send('debloat:progress', progress);
-    })
-  );
+    });
+    return { results, restorePoint: rp };
+  });
 
   safe('telemetry:status', () => getTelemetryStatus());
-  safe('telemetry:disable', (options) => disableTelemetry(options));
+  safe('telemetry:disable', async (options) => {
+    const rp = await createRestorePoint('NeuroBoost - before telemetry changes');
+    const result = await disableTelemetry(options);
+    return { ...result, restorePoint: rp };
+  });
   safe('telemetry:restore', () => restoreTelemetry());
 
   safe('ram:info', () => getMemoryInfo());
@@ -161,12 +276,46 @@ function registerIpcHandlers() {
   safe('process:list', () => listProcesses());
   safe('process:setPriority', (pid, priority) => setProcessPriority(pid, priority));
   safe('process:kill', (pid, name) => killProcess(pid, name));
-  safe('process:autoBoostStart', (options) =>
-    startAutoBoost(options, (event) => {
-      if (mainWindow) mainWindow.webContents.send('process:autoBoostEvent', event);
+  safe('process:autoBoostStart', (options) => {
+    const settings = getSettings();
+    setAutoBoostConfig({ cpuThreshold: settings.autoBoostCpuThreshold, customHeavyApps: settings.customHeavyApps });
+    const result = startAutoBoost(options, handleAutoBoostEvent);
+    autoBoostRunningForTray = true;
+    updateTrayMenu();
+    updateSettings({ autoBoostEnabledOnLaunch: true });
+    return result;
+  });
+  safe('process:autoBoostStop', () => {
+    const result = stopAutoBoost();
+    autoBoostRunningForTray = false;
+    updateTrayMenu();
+    updateSettings({ autoBoostEnabledOnLaunch: false });
+    return result;
+  });
+
+  safe('startup:list', () => listStartupItems());
+  safe('startup:toggle', (id, enabled) => toggleStartupItem(id, enabled));
+
+  safe('disk:scan', () => scanDiskCategories());
+  safe('disk:clean', (categoryIds) =>
+    cleanDiskCategories(categoryIds, (event) => {
+      if (mainWindow) mainWindow.webContents.send('disk:progress', event);
     })
   );
-  safe('process:autoBoostStop', () => stopAutoBoost());
+
+  safe('restorePoint:create', (description) => createRestorePoint(description));
+
+  safe('settings:get', () => getSettings());
+  safe('settings:update', (partial) => {
+    const next = updateSettings(partial);
+    if (process.platform === 'win32' && typeof partial.startWithWindows === 'boolean') {
+      app.setLoginItemSettings({ openAtLogin: partial.startWithWindows, path: process.execPath });
+    }
+    if (partial.autoBoostCpuThreshold || partial.customHeavyApps) {
+      setAutoBoostConfig({ cpuThreshold: next.autoBoostCpuThreshold, customHeavyApps: next.customHeavyApps });
+    }
+    return next;
+  });
 
   ipcMain.handle('app:openExternal', (_event, url) => shell.openExternal(url));
 }
