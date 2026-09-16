@@ -27,7 +27,11 @@ jobs:
         run: npm ci
 
       - name: Run JavaScript unit tests
-        run: npm test
+        shell: cmd
+        run: |
+          npm test > build-output.log 2>&1
+          type build-output.log
+          exit /b %errorlevel%
 
       - name: Run PowerShell (Pester) tests
         shell: pwsh
