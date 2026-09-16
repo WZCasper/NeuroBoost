@@ -4,6 +4,7 @@ const path = require('path');
 const { runPowerShellFile } = require('./powershell-runner');
 const { scriptsDir } = require('./paths');
 const { listProcessesViaWorker, stopWorker: stopProcessWorker } = require('./process-worker');
+const { pickBoostTarget: pickBoostTargetPure, CRITICAL_NAMES, HEAVY_APP_NAMES, DEPRIORITIZE_NAMES } = require('./pure');
 
 // Process listing runs through a long-lived PowerShell worker
 // (process-worker.js) instead of spawning a fresh powershell.exe on every
@@ -17,50 +18,15 @@ const ALLOWED_PRIORITIES = ['Idle', 'BelowNormal', 'Normal', 'AboveNormal', 'Hig
 // Never killable and never auto-boosted as a "generic heavy process" target -
 // core OS/security processes. This is the actual safety boundary for
 // process:kill, checked server-side regardless of what the renderer sends.
-const CRITICAL_NAMES = new Set([
-  'system', 'idle', 'registry', 'csrss', 'wininit', 'winlogon', 'services',
-  'lsass', 'smss', 'secure system', 'memory compression', 'svchost', 'dwm',
-  'explorer', 'securityhealthservice', 'msmpeng', 'nissrv', 'neuroboost'
-]);
 
 // Executables treated as "heavy foreground" workloads worth boosting when
 // auto-boost is on. Matched case-insensitively against the process name
 // (without .exe, as PowerShell's ProcessName already strips it). Checked
 // first, before the generic top-CPU fallback below, so a known game/
 // renderer always wins even if something else briefly spikes higher.
-const HEAVY_APP_NAMES = new Set([
-  'obs64',
-  'obs32',
-  'obs',
-  'cs2',
-  'csgo',
-  'valorant-win64-shipping',
-  'r5apex',
-  'fortniteclient-win64-shipping',
-  'gta5',
-  'eldenring',
-  'cyberpunk2077',
-  'starfield',
-  'blender',
-  'afterfx',
-  'resolve',
-  'unrealeditor',
-  'unity'
-]);
 
 // Background processes safe to gently deprioritize during a boost session.
 // Deliberately conservative - never system, security, or driver processes.
-const DEPRIORITIZE_NAMES = new Set([
-  'onedrive',
-  'searchindexer',
-  'widgets',
-  'yourphone',
-  'msteams',
-  'skype',
-  'spotify',
-  'chrome',
-  'msedge'
-]);
 
 // Minimum CPU% for a process to be considered a "generic heavy process"
 // worth boosting when nothing from HEAVY_APP_NAMES is running. Mutable -
@@ -146,12 +112,7 @@ async function killProcess(pid, name) {
 }
 
 function pickBoostTarget(procs) {
-  const heavy = procs.find((p) => {
-    const n = p.name.toLowerCase();
-    return HEAVY_APP_NAMES.has(n) || customHeavyAppNames.has(n);
-  });
-  if (heavy) return heavy;
-  return procs.find((p) => p.cpuPercent >= genericBoostCpuThreshold && !CRITICAL_NAMES.has(p.name.toLowerCase()));
+  return pickBoostTargetPure(procs, { cpuThreshold: genericBoostCpuThreshold, customHeavyApps: customHeavyAppNames });
 }
 
 async function startAutoBoost(options = {}, onEvent) {
