@@ -14,56 +14,11 @@
 param()
 
 $ErrorActionPreference = 'Stop'
-
-$protectedNames = @(
-  'Microsoft.WindowsStore', 'Microsoft.DesktopAppInstaller', 'Microsoft.WindowsCalculator',
-  'Microsoft.WindowsNotepad', 'Microsoft.Windows.Photos',
-  'Microsoft.Windows.ShellExperienceHost', 'Microsoft.Windows.StartMenuExperienceHost',
-  'Microsoft.Windows.SecHealthUI', 'Microsoft.Windows.SecureAssessmentBrowser',
-  'Microsoft.Windows.CloudExperienceHost', 'Microsoft.Windows.ContentDeliveryManager',
-  'Microsoft.Windows.ParentalControls', 'Microsoft.Windows.PeopleExperienceHost',
-  'Microsoft.Windows.PinningConfirmationDialog', 'Microsoft.Windows.NarratorQuickStart',
-  'Microsoft.Windows.OOBENetworkCaptivePortal', 'Microsoft.Windows.OOBENetworkConnectionFlow',
-  'Microsoft.Windows.AssignedAccessLockApp', 'Microsoft.Windows.CapturePicker',
-  'Microsoft.Windows.XGpuEjectDialog', 'Microsoft.Windows.CBSPreview',
-  'Microsoft.AAD.BrokerPlugin', 'Microsoft.AccountsControl', 'Microsoft.CredDialogHost',
-  'Microsoft.ECApp', 'Microsoft.LockApp', 'Microsoft.MicrosoftEdge', 'Microsoft.MicrosoftEdgeDevToolsClient',
-  'MicrosoftWindows.Client.CBS', 'MicrosoftWindows.Client.Core', 'MicrosoftWindows.Client.FileExp',
-  'MicrosoftWindows.Client.WebExperience'
-)
-
-# Classification is name-pattern based, not malware/usage scanning - it is
-# shown to the user as such. 'insist' = known ad-bundled / promo software
-# with no general legitimate use case. 'suggest' = Microsoft's own optional
-# first-party apps most people don't use but that are not harmful.
-$insistPatterns = @(
-  'candycrush', 'king\.com', 'farmville', 'marchofempires', 'wildtangent', 'bubblewitch',
-  'royalrevolt', 'asphalt', 'hiddencity', 'cookingfever', 'dropbox', 'mcafee', 'norton',
-  'keeper', 'evernote', 'spotifyab\.spotifymusic', 'disney', 'hulu\b'
-)
-$suggestPatterns = @(
-  'bingweather', 'bingnews', 'getstarted', 'microsoftofficehub', 'solitairecollection',
-  '^microsoft\.people$', 'windowsfeedbackhub', 'zunemusic', 'zunevideo', '^microsoft\.skypeapp$',
-  'xboxgamingoverlay', '^microsoft\.gamingapp$', '^microsoft\.yourphone$', 'mixedreality\.portal',
-  '^microsoft\.3dbuilder$', 'poweraut', 'clipchamp', '549981c3f5f10'
-)
-
-function Get-Recommendation {
-  param([string]$Name)
-  $lower = $Name.ToLowerInvariant()
-  foreach ($p in $insistPatterns) { if ($lower -match $p) { return 'insist' } }
-  foreach ($p in $suggestPatterns) { if ($lower -match $p) { return 'suggest' } }
-  return $null
-}
+. (Join-Path $PSScriptRoot 'lib\appx-safety.ps1')
 
 try {
   $packages = Get-AppxPackage |
-    Where-Object {
-      -not $_.NonRemovable -and
-      -not $_.IsFramework -and
-      -not $_.IsResourcePackage -and
-      ($protectedNames -notcontains $_.Name)
-    } |
+    Where-Object { Test-AppRemovable -Package $_ } |
     Sort-Object Name -Unique
 
   $result = foreach ($p in $packages) {
@@ -81,7 +36,7 @@ try {
     [pscustomobject]@{
       id             = $p.PackageFamilyName
       name           = $displayName
-      recommendation = Get-Recommendation -Name $p.Name
+      recommendation = Get-AppRecommendation -Name $p.Name
     }
   }
 

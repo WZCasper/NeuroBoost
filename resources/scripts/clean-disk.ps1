@@ -43,21 +43,26 @@ $results = New-Object System.Collections.Generic.List[object]
 $totalFreed = [int64]0
 
 function Get-RecycleBinSize {
-  $sum = (Get-ChildItem 'C:\$Recycle.Bin' -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
-  if ($null -eq $sum) { return 0 }
-  return [int64]$sum
+  $total = [int64]0
+  $drives = [System.IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady }
+  foreach ($drive in $drives) {
+    $binPath = Join-Path $drive.RootDirectory.FullName '$Recycle.Bin'
+    $sum = (Get-ChildItem $binPath -Recurse -Force -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+    if ($sum) { $total += [int64]$sum }
+  }
+  return $total
 }
 
 foreach ($id in $selected) {
   $targetPaths = @()
   switch ($id) {
     'temp_user' { $targetPaths = @($env:TEMP) }
-    'temp_system' { $targetPaths = @('C:\Windows\Temp') }
+    'temp_system' { $targetPaths = @((Join-Path $env:SystemRoot 'Temp')) }
     'recycle_bin' { $targetPaths = @() } # handled separately below
-    'update_cache' { $targetPaths = @('C:\Windows\SoftwareDistribution\Download') }
-    'delivery_opt' { $targetPaths = @('C:\Windows\SoftwareDistribution\DeliveryOptimization\Cache') }
+    'update_cache' { $targetPaths = @((Join-Path $env:SystemRoot 'SoftwareDistribution\Download')) }
+    'delivery_opt' { $targetPaths = @((Join-Path $env:SystemRoot 'SoftwareDistribution\DeliveryOptimization\Cache')) }
     'error_reports' {
-      $p = 'C:\ProgramData\Microsoft\Windows\WER'
+      $p = Join-Path $env:ProgramData 'Microsoft\Windows\WER'
       $targetPaths = @((Join-Path $p 'ReportArchive'), (Join-Path $p 'ReportQueue'))
     }
     'chrome_cache' { $targetPaths = @((Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data\Default\Cache')) }

@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
+const { mergeTelemetryBackup } = require('./pure');
 const { runPowerShellFile } = require('./powershell-runner');
 const { scriptsDir } = require('./paths');
 
@@ -41,7 +42,24 @@ async function disableTelemetry(options = {}) {
   const results = Array.isArray(parsed.results) ? parsed.results : parsed.results ? [parsed.results] : [];
 
   if (backup.length > 0) {
-    fs.writeFileSync(backupFilePath(), JSON.stringify(backup, null, 2), 'utf8');
+    // Merge with any existing backup instead of overwriting it: if the app
+    // already has original values recorded for a key from a previous apply,
+    // keep those (they're the TRUE pre-NeuroBoost state) and only add
+    // entries for keys touched for the first time in this run. Without
+    // this, applying twice would silently replace the original backup with
+    // "already-reduced" values, and Restore defaults would restore to the
+    // wrong state.
+    let merged = backup;
+    const backupPath = backupFilePath();
+    if (fs.existsSync(backupPath)) {
+      try {
+        const existing = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+        merged = mergeTelemetryBackup(existing, backup);
+      } catch (_) {
+        // Existing backup is unreadable/corrupt - fall back to just this run's backup.
+      }
+    }
+    fs.writeFileSync(backupPath, JSON.stringify(merged, null, 2), 'utf8');
   }
 
   return {

@@ -1,6 +1,8 @@
 'use strict';
 
 (function () {
+  const { t, setLocale, applyStaticTranslations } = window.NeuroBoostI18n;
+
   const state = {
     view: 'overview',
     systemInfo: null,
@@ -21,40 +23,17 @@
     settings: null
   };
 
-  const PAGE_TITLES = {
-    overview: 'Обзор системы',
-    debloat: 'Управление приложениями',
-    telemetry: 'Телеметрия и конфиденциальность',
-    ram: 'Оптимизация памяти',
-    processes: 'Диспетчер процессов',
-    startup: 'Автозагрузка',
-    disk: 'Очистка диска',
-    settings: 'Настройки'
-  };
+  const pageTitle = (view) => t('page.' + view);
 
   // Priority values are sent to the backend/PowerShell as-is (they are
   // System.Diagnostics.ProcessPriorityClass names), only the label shown to
   // the user is translated.
-  const PRIORITY_LABELS = {
-    Idle: 'Простой',
-    BelowNormal: 'Ниже среднего',
-    Normal: 'Обычный',
-    AboveNormal: 'Выше среднего',
-    High: 'Высокий'
-  };
+  const priorityLabel = (p) => t('priority.' + p);
   const PRIORITY_ORDER = ['Idle', 'BelowNormal', 'Normal', 'AboveNormal', 'High'];
 
   // disable-telemetry.ps1 returns plain-ASCII keys (see that file for why) -
   // this is where they get a human-readable Russian label.
-  const TELEMETRY_KEY_LABELS = {
-    core_telemetry: 'Диагностические данные',
-    advertising_id: 'Рекламный идентификатор',
-    cortana: 'Кортана',
-    widgets: 'Виджеты',
-    copilot: 'Copilot',
-    service_DiagTrack: 'Служба DiagTrack',
-    service_dmwappushservice: 'Служба dmwappushservice'
-  };
+  const telemetryKeyLabel = (k) => t('telemetry.' + k);
 
   // Short descriptions for common process names, shown as a tooltip when
   // hovering a process in the table. "critical: true" means NeuroBoost
@@ -171,7 +150,7 @@
   async function call(promise) {
     const result = await promise;
     if (!result || result.ok !== true) {
-      throw new Error((result && result.error) || 'Неизвестная ошибка');
+      throw new Error((result && result.error) || t('common.unknownError'));
     }
     return result.data;
   }
@@ -207,7 +186,7 @@
   }
 
   function showError(err) {
-    showToast('error', typeof err === 'string' ? err : (err && err.message) || 'Что-то пошло не так.');
+    showToast('error', typeof err === 'string' ? err : (err && err.message) || t('common.somethingWrong'));
   }
 
   // ---- navigation -------------------------------------------------------
@@ -217,9 +196,11 @@
       panel.style.display = panel.dataset.panel === view ? 'block' : 'none';
     });
     $all('.nb-nav-item').forEach((btn) => {
-      btn.classList.toggle('is-active', btn.dataset.view === view);
+      const active = btn.dataset.view === view;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-selected', String(active));
     });
-    $('#page-title').textContent = PAGE_TITLES[view] || view;
+    $('#page-title').textContent = pageTitle(view);
 
     if (view === 'processes') refreshProcesses();
     if (view === 'startup' && state.startupItems.length === 0) loadStartupItems();
@@ -247,7 +228,7 @@
 
     try {
       const elevated = await call(window.neuroboost.system.isElevated());
-      const label = elevated ? 'Администратор' : 'Без повышенных прав';
+      const label = elevated ? t('common.admin') : t('common.notElevated');
       $('#adminPill').textContent = label;
       $('#adminPill').className = 'nb-pill ' + (elevated ? 'nb-pill-safe' : 'nb-pill-warn');
       $('#footerAdmin').textContent = label;
@@ -262,7 +243,7 @@
 
   function renderSystemInfo(info) {
     if (!info || !info.supported) {
-      const msg = (info && info.message) || 'ОС не поддерживается';
+      const msg = (info && info.message) || t('common.osUnsupported');
       $('#osPill').textContent = msg;
       $('#footerOs').textContent = msg;
       return;
@@ -310,7 +291,7 @@
         if (state.view === 'ram') renderRam(result);
         showToast(
           'success',
-          'Готово: освобождено ' + result.freedGB.toFixed(2) + ' ГБ, очищено процессов: ' + result.trimmedCount
+          t('ram.toast', { freed: result.freedGB.toFixed(2), count: result.trimmedCount })
         );
       } catch (err) {
         showError('Не удалось выполнить ускорение: ' + err.message);
@@ -323,7 +304,7 @@
   // ---- debloat --------------------------------------------------------
   async function loadDebloatCatalog() {
     const list = $('#debloatList');
-    list.innerHTML = '<div class="col-span-2 py-6 text-center text-[12px] text-slate-500">Сканирование установленных приложений...</div>';
+    list.innerHTML = '<div class="col-span-2 py-6 text-center text-[12px] text-slate-500">' + t('debloat.scanning') + '</div>';
     try {
       const catalog = await call(window.neuroboost.debloat.list());
       state.debloatCatalog = catalog;
@@ -342,7 +323,7 @@
     list.innerHTML = '';
 
     if (state.debloatCatalog.length === 0) {
-      list.innerHTML = '<div class="col-span-2 py-6 text-center text-[12px] text-slate-500">Не найдено приложений, которые можно безопасно удалить.</div>';
+      list.innerHTML = '<div class="col-span-2 py-6 text-center text-[12px] text-slate-500">' + t('debloat.none') + '</div>';
       return;
     }
 
@@ -352,9 +333,9 @@
       const borderStyle = rec === 'insist' ? 'border-danger/30' : rec === 'suggest' ? 'border-warn/30' : 'border-white/5';
       const badge =
         rec === 'insist'
-          ? '<span class="nb-pill nb-pill-danger">настоятельно рекомендуется</span>'
+          ? '<span class="nb-pill nb-pill-danger">' + t('debloat.insist') + '</span>'
           : rec === 'suggest'
-          ? '<span class="nb-pill nb-pill-warn">можно удалить</span>'
+          ? '<span class="nb-pill nb-pill-warn">' + t('debloat.suggest') + '</span>'
           : '';
 
       const card = document.createElement('label');
@@ -432,9 +413,9 @@
       const { results, restorePoint } = await call(window.neuroboost.debloat.remove(ids));
       results.forEach((r) => appendDebloatProgress(r));
       const removed = results.filter((r) => r.status === 'removed').length;
-      showToast('success', 'Удалено приложений: ' + removed + ' из ' + results.length);
+      showToast('success', t('debloat.result', { removed: removed, total: results.length }));
       if (restorePoint && restorePoint.created) {
-        showToast('info', 'Перед изменениями создана точка восстановления Windows');
+        showToast('info', t('restorePoint.created'));
       }
       await loadDebloatCatalog();
     } catch (err) {
@@ -447,7 +428,7 @@
   function appendDebloatProgress(entry) {
     const el = document.createElement('div');
     const color = entry.status === 'removed' ? 'text-good' : entry.status === 'failed' ? 'text-danger' : 'text-slate-400';
-    const label = entry.status === 'removed' ? 'удалено' : entry.status === 'failed' ? 'ошибка' : 'удаление...';
+    const label = entry.status === 'removed' ? t('debloat.removed') : entry.status === 'failed' ? t('debloat.failed') : t('debloat.removing');
     el.className = color;
     el.textContent = debloatAppName(entry.id) + ' \u2014 ' + label + (entry.error ? ' (' + entry.error + ')' : '');
     el.dataset.appId = entry.id;
@@ -477,9 +458,9 @@
   }
 
   function renderTelemetryStatus() {
-    $('#telemetryStatusText').textContent = state.telemetryCustomized ? 'Настроено' : 'Не настроено';
+    $('#telemetryStatusText').textContent = state.telemetryCustomized ? t('telemetry.configured') : t('telemetry.notConfigured');
     $('#telemetryRestoreBtn').disabled = !state.telemetryCustomized;
-    $('#ovTelemetryStatus').textContent = state.telemetryCustomized ? 'Настроено' : 'Не настроено';
+    $('#ovTelemetryStatus').textContent = state.telemetryCustomized ? t('telemetry.configured') : t('telemetry.notConfigured');
   }
 
   async function applyTelemetry() {
@@ -493,16 +474,16 @@
       if (result.failed > 0) {
         const failedLabels = result.results
           .filter((r) => r.status === 'failed')
-          .map((r) => TELEMETRY_KEY_LABELS[r.key] || r.key)
+          .map((r) => telemetryKeyLabel(r.key))
           .join(', ');
-        $('#telemetryStatusText').textContent = 'Применено: ' + result.changed + ', не удалось: ' + result.failed;
-        showError('Не применилось: ' + failedLabels + '. Остальное применено успешно.');
+        $('#telemetryStatusText').textContent = t('telemetry.partial', { changed: result.changed, failed: result.failed });
+        showError(t('telemetry.failedList', { list: failedLabels }));
       } else {
         $('#telemetryStatusText').textContent = 'Настроено \u00b7 применено: ' + result.changed;
-        showToast('success', 'Настройки телеметрии применены (' + result.changed + ')');
+        showToast('success', t('telemetry.applied', { count: result.changed }));
       }
       if (result.restorePoint && result.restorePoint.created) {
-        showToast('info', 'Перед изменениями создана точка восстановления Windows');
+        showToast('info', t('restorePoint.created'));
       }
     } catch (err) {
       showError('Не удалось применить настройки телеметрии: ' + err.message);
@@ -518,7 +499,7 @@
       await call(window.neuroboost.telemetry.restore());
       state.telemetryCustomized = false;
       renderTelemetryStatus();
-      showToast('success', 'Настройки телеметрии восстановлены');
+      showToast('success', t('telemetry.restored'));
     } catch (err) {
       showError('Не удалось восстановить настройки телеметрии: ' + err.message);
       btn.disabled = !state.telemetryCustomized;
@@ -553,7 +534,7 @@
     const btn = $('#btn-purge');
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = 'Очистка...';
+    btn.innerHTML = t('ram.purging');
 
     const progressCard = $('#ramProgressCard');
     const progressLog = $('#ramProgressLog');
@@ -566,9 +547,9 @@
       renderRam(info);
       updateOverviewRam(info);
       appendRamProgress(
-        'Готово: освобождено ' + info.freedGB.toFixed(2) + ' ГБ, обработано процессов: ' + info.trimmedCount
+        t('ram.done', { freed: info.freedGB.toFixed(2), count: info.trimmedCount })
       );
-      showToast('success', 'Освобождено ' + info.freedGB.toFixed(2) + ' ГБ \u00b7 очищено процессов: ' + info.trimmedCount);
+      showToast('success', t('ram.toast', { freed: info.freedGB.toFixed(2), count: info.trimmedCount }));
     } catch (err) {
       showError('Не удалось очистить память: ' + err.message);
     } finally {
@@ -589,10 +570,10 @@
     window.neuroboost.ram.onProgress((event) => {
       if (event.event === 'standby') {
         appendRamProgress(
-          event.status === 'purged' ? 'Список ожидания освобождён' : 'Список ожидания: пропущено (недостаточно прав)'
+          event.status === 'purged' ? t('ram.standbyPurged') : t('ram.standbySkipped')
         );
       } else if (event.event === 'trim') {
-        appendRamProgress('Очищен рабочий набор: ' + event.name + '.exe');
+        appendRamProgress(t('ram.trimmed', { name: event.name }));
       }
     });
   }
@@ -601,20 +582,20 @@
   function processTooltip(p) {
     const info = PROCESS_INFO[p.name.toLowerCase()];
     if (info) {
-      return (info.critical ? '\u26a0\ufe0f Критический системный процесс. ' : '') + info.d;
+      return (info.critical ? t('process.criticalWarn') : '') + info.d;
     }
     // Fallback for anything not in the dictionary: the executable path is
     // still genuinely useful (e.g. "...AppData\Local\Discord\..." tells you
     // what it is even if the name itself doesn't), so every row gets some
     // tooltip rather than only the ~60 processes we recognize by name.
-    return p.path ? 'Путь: ' + p.path : 'Процесс: ' + p.name + '.exe (нет описания в базе)';
+    return p.path ? t('process.pathPrefix') + p.path : t('process.noDescription', { name: p.name });
   }
 
   async function refreshProcesses() {
     const btn = $('#processRefreshBtn');
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = 'Обновление...';
+    btn.innerHTML = t('common.refreshing');
     try {
       const procs = await call(window.neuroboost.process.list());
       state.allProcesses = procs;
@@ -638,7 +619,7 @@
     body.innerHTML = '';
 
     if (procs.length === 0) {
-      body.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm">Ничего не найдено</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm">' + t('common.nothingFound') + '</td></tr>';
       return;
     }
 
@@ -647,7 +628,7 @@
       tr.className = 'hover:bg-white/5 transition-colors';
 
       const options = PRIORITY_ORDER
-        .map((pr) => '<option value="' + pr + '"' + (pr === p.priority ? ' selected' : '') + '>' + PRIORITY_LABELS[pr] + '</option>')
+        .map((pr) => '<option value="' + pr + '"' + (pr === p.priority ? ' selected' : '') + '>' + priorityLabel(pr) + '</option>')
         .join('');
 
       const info = PROCESS_INFO[p.name.toLowerCase()];
@@ -664,7 +645,7 @@
 
       tr.innerHTML =
         '<td class="p-4 ' + nameClass + '" title="' + escapeHtml(tooltip) + '">' +
-        escapeHtml(p.name) + (isHeavy && !isCritical ? ' <span class="nb-pill nb-pill-danger ml-1">высокая нагрузка</span>' : '') +
+        escapeHtml(p.name) + (isHeavy && !isCritical ? ' <span class="nb-pill nb-pill-danger ml-1">' + t('process.highLoad') + '</span>' : '') +
         '</td>' +
         '<td class="p-4 nb-mono text-slate-500">' + p.pid + '</td>' +
         '<td class="p-4 nb-mono ' + cpuClass + '">' + p.cpuPercent.toFixed(1) + '%</td>' +
@@ -684,7 +665,7 @@
         const priority = select.value;
         try {
           await call(window.neuroboost.process.setPriority(pid, priority));
-          showToast('success', 'Приоритет изменён: ' + PRIORITY_LABELS[priority]);
+          showToast('success', t('process.priorityChanged', { priority: priorityLabel(priority) }));
         } catch (err) {
           showError('Не удалось изменить приоритет: ' + err.message);
         }
@@ -696,13 +677,13 @@
         const pid = Number(btn.dataset.killPid);
         const name = btn.dataset.killName;
         const confirmed = window.confirm(
-          'Завершить процесс "' + name + '.exe" (PID ' + pid + ')?\n\nНесохранённые данные в этой программе будут потеряны.'
+          t('process.killConfirm', { name: name, pid: pid })
         );
         if (!confirmed) return;
         btn.disabled = true;
         try {
           await call(window.neuroboost.process.kill(pid, name));
-          showToast('success', 'Процесс ' + name + '.exe завершён');
+          showToast('success', t('process.killed', { name: name }));
           refreshProcesses();
         } catch (err) {
           showError('Не удалось завершить процесс: ' + err.message);
@@ -732,13 +713,13 @@
           await call(window.neuroboost.process.autoBoostStart({ intervalMs: 8000 }));
           state.autoBoostRunning = true;
           statusBox.classList.remove('hidden');
-          statusText.textContent = 'Мониторинг нагрузки...';
-          showToast('success', 'Авто-ускорение включено \u2014 проверка каждые 8 секунд');
+          statusText.textContent = t('autoboost.monitoring');
+          showToast('success', t('autoboost.on'));
         } else {
           await call(window.neuroboost.process.autoBoostStop());
           state.autoBoostRunning = false;
           statusBox.classList.add('hidden');
-          showToast('info', 'Авто-ускорение выключено, приоритеты возвращены');
+          showToast('info', t('autoboost.off'));
         }
       } catch (err) {
         toggle.checked = !wantRunning;
@@ -754,17 +735,17 @@
       const time = new Date().toLocaleTimeString();
 
       if (event.type === 'boosted') {
-        line.textContent = '[' + time + '] Повышен приоритет: ' + event.name + '.exe (' + event.cpuPercent.toFixed(0) + '% ЦП) \u2192 Высокий';
-        statusText.innerHTML = '\u26a1 Ускоряется: <span class="text-cyan font-medium">' + escapeHtml(event.name) + '.exe</span> (' + event.cpuPercent.toFixed(0) + '% ЦП)';
-        showToast('success', 'Авто-ускорение: ' + event.name + '.exe \u2192 Высокий приоритет');
+        line.textContent = '[' + time + '] ' + t('autoboost.logBoosted', { name: event.name, cpu: event.cpuPercent.toFixed(0) });
+        statusText.textContent = t('autoboost.boosting', { name: event.name, cpu: event.cpuPercent.toFixed(0) });
+        showToast('success', t('autoboost.toast', { name: event.name }));
         if (state.view === 'processes') refreshProcesses();
       } else if (event.type === 'holding') {
-        statusText.innerHTML = '\u26a1 Ускорено: <span class="text-cyan font-medium">' + escapeHtml(event.name) + '.exe</span> (' + event.cpuPercent.toFixed(0) + '% ЦП)';
+        statusText.textContent = t('autoboost.boosted', { name: event.name, cpu: event.cpuPercent.toFixed(0) });
         return; // no log line - this fires every tick while steady, would spam the log
       } else if (event.type === 'idle') {
         statusText.textContent = event.topName
-          ? 'Нагрузка в норме (максимум: ' + event.topName + '.exe, ' + event.topCpu.toFixed(0) + '% ЦП)'
-          : 'Нагрузка в норме';
+          ? t('autoboost.normal', { name: event.topName, cpu: event.topCpu.toFixed(0) })
+          : t('autoboost.normalNoTop');
         return; // routine status, not worth a log line every tick
       } else if (event.type === 'error') {
         line.textContent = '[' + time + '] ' + event.message;
@@ -777,16 +758,7 @@
 
   // scan-disk.ps1 returns plain-ASCII ids only (same reasoning as the
   // telemetry keys) - labels live here.
-  const DISK_CATEGORY_LABELS = {
-    temp_user: 'Временные файлы пользователя',
-    temp_system: 'Временные файлы Windows',
-    recycle_bin: 'Корзина',
-    update_cache: 'Кэш центра обновления Windows',
-    delivery_opt: 'Кэш оптимизации доставки',
-    error_reports: 'Отчёты об ошибках Windows',
-    chrome_cache: 'Кэш браузера Chrome',
-    edge_cache: 'Кэш браузера Edge'
-  };
+  const diskCategoryLabel = (id) => t('disk.' + id);
 
   // ---- helpers: bytes formatting -----------------------------------------
   function formatBytes(bytes) {
@@ -799,7 +771,7 @@
   // ---- startup ------------------------------------------------------------
   async function loadStartupItems() {
     const list = $('#startupList');
-    list.innerHTML = '<div class="py-6 text-center text-[12px] text-slate-500">Сканирование автозагрузки...</div>';
+    list.innerHTML = '<div class="py-6 text-center text-[12px] text-slate-500">' + t('startup.scanning') + '</div>';
     try {
       const items = await call(window.neuroboost.startup.list());
       state.startupItems = items;
@@ -815,7 +787,7 @@
     list.innerHTML = '';
 
     if (state.startupItems.length === 0) {
-      list.innerHTML = '<div class="py-6 text-center text-[12px] text-slate-500">Программ в автозагрузке не найдено.</div>';
+      list.innerHTML = '<div class="py-6 text-center text-[12px] text-slate-500">' + t('startup.none') + '</div>';
       return;
     }
 
@@ -841,7 +813,7 @@
         input.disabled = true;
         try {
           await call(window.neuroboost.startup.toggle(id, enabled));
-          showToast('success', enabled ? 'Включено в автозагрузке' : 'Отключено из автозагрузки');
+          showToast('success', enabled ? t('startup.enabled') : t('startup.disabled'));
         } catch (err) {
           input.checked = !enabled;
           showError('Не удалось изменить автозагрузку: ' + err.message);
@@ -855,7 +827,7 @@
   // ---- disk cleanup ---------------------------------------------------------
   async function loadDiskCategories() {
     const list = $('#diskList');
-    list.innerHTML = '<div class="col-span-2 py-6 text-center text-[12px] text-slate-500">Подсчёт размера временных файлов...</div>';
+    list.innerHTML = '<div class="col-span-2 py-6 text-center text-[12px] text-slate-500">' + t('disk.scanning') + '</div>';
     try {
       const categories = await call(window.neuroboost.disk.scan());
       state.diskCategories = categories;
@@ -877,7 +849,7 @@
       card.className = 'glass-card rounded-xl p-4 flex items-center gap-3 cursor-pointer';
       card.innerHTML =
         '<span class="flex-1 min-w-0">' +
-        '<span class="block text-[13px] text-slate-200">' + escapeHtml(DISK_CATEGORY_LABELS[cat.id] || cat.id) + '</span>' +
+        '<span class="block text-[13px] text-slate-200">' + escapeHtml(diskCategoryLabel(cat.id)) + '</span>' +
         '<span class="block text-[12px] text-cyan nb-mono mt-0.5">' + formatBytes(cat.sizeBytes) + '</span>' +
         '</span>' +
         '<input type="checkbox" class="h-4 w-4 accent-cyan shrink-0" data-disk-id="' + escapeHtml(cat.id) + '" ' + (cat.sizeBytes > 0 ? '' : 'disabled') + ' />';
@@ -898,11 +870,11 @@
       .filter((c) => state.diskSelected.has(c.id))
       .reduce((sum, c) => sum + c.sizeBytes, 0);
     $('#diskCleanBtn').disabled = state.diskSelected.size === 0;
-    $('#diskSelectedSize').textContent = state.diskSelected.size > 0 ? 'Будет освобождено: ' + formatBytes(selectedBytes) : '';
+    $('#diskSelectedSize').textContent = state.diskSelected.size > 0 ? t('disk.willFree', { size: formatBytes(selectedBytes) }) : '';
   }
 
   function diskCategoryName(id) {
-    return DISK_CATEGORY_LABELS[id] || id;
+    return diskCategoryLabel(id);
   }
 
   async function runDiskClean() {
@@ -918,7 +890,7 @@
 
     try {
       const summary = await call(window.neuroboost.disk.clean(ids));
-      showToast('success', 'Освобождено: ' + formatBytes(summary.freedBytes));
+      showToast('success', t('disk.freed', { size: formatBytes(summary.freedBytes) }));
       await loadDiskCategories();
     } catch (err) {
       showError('Не удалось очистить диск: ' + err.message);
@@ -931,10 +903,19 @@
     window.neuroboost.disk.onProgress((event) => {
       if (event.event === 'category') {
         const line = document.createElement('div');
-        line.textContent = '\u2713 ' + diskCategoryName(event.id) + ': освобождено ' + formatBytes(event.freedBytes);
+        line.textContent = '\u2713 ' + t('disk.categoryFreed', { name: diskCategoryName(event.id), size: formatBytes(event.freedBytes) });
         $('#diskProgressLog').appendChild(line);
       }
     });
+  }
+
+  async function loadAppVersion() {
+    try {
+      const version = await window.neuroboost.getVersion();
+      $('#appVersion').textContent = version;
+    } catch (_) {
+      $('#appVersion').textContent = '—';
+    }
   }
 
   // ---- settings ------------------------------------------------------------
@@ -956,6 +937,7 @@
     $('#settingCpuThreshold').value = s.autoBoostCpuThreshold;
     $('#settingCpuThresholdValue').textContent = s.autoBoostCpuThreshold + '%';
     $('#settingCustomApps').value = (s.customHeavyApps || []).join(', ');
+    $('#settingLanguage').value = s.language || 'ru';
 
     // Auto-Boost may already be running (e.g. main process auto-started it
     // on launch because it was on last session) - reflect that here.
@@ -963,7 +945,7 @@
       state.autoBoostRunning = true;
       $('#autoBoostToggle').checked = true;
       $('#autoBoostStatus').classList.remove('hidden');
-      $('#autoBoostStatusText').textContent = 'Мониторинг нагрузки...';
+      $('#autoBoostStatusText').textContent = t('autoboost.monitoring');
     }
   }
 
@@ -972,10 +954,29 @@
       $('#settingCpuThresholdValue').textContent = e.target.value + '%';
     });
 
+    $('#settingLanguage').addEventListener('change', async (e) => {
+      const lang = e.target.value;
+      setLocale(lang);
+      applyLanguage();
+      try {
+        state.settings = await call(window.neuroboost.settings.update({ language: lang }));
+      } catch (err) {
+        showError(err.message);
+      }
+    });
+
+    $('#openLogsBtn').addEventListener('click', async () => {
+      try {
+        await window.neuroboost.logs.reveal();
+      } catch (err) {
+        showError(err.message);
+      }
+    });
+
     $('#settingStartWithWindows').addEventListener('change', async (e) => {
       try {
         state.settings = await call(window.neuroboost.settings.update({ startWithWindows: e.target.checked }));
-        showToast('success', e.target.checked ? 'Автозапуск с Windows включён' : 'Автозапуск с Windows выключен');
+        showToast('success', e.target.checked ? t('settings.startupOn') : t('settings.startupOff'));
       } catch (err) {
         e.target.checked = !e.target.checked;
         showError('Не удалось сохранить настройку: ' + err.message);
@@ -985,7 +986,7 @@
     $('#settingMinimizeToTray').addEventListener('change', async (e) => {
       try {
         state.settings = await call(window.neuroboost.settings.update({ minimizeToTray: e.target.checked }));
-        showToast('success', 'Настройка сохранена');
+        showToast('success', t('settings.saved'));
       } catch (err) {
         e.target.checked = !e.target.checked;
         showError('Не удалось сохранить настройку: ' + err.message);
@@ -1004,12 +1005,81 @@
         state.settings = await call(
           window.neuroboost.settings.update({ autoBoostCpuThreshold: threshold, customHeavyApps: customApps })
         );
-        showToast('success', 'Настройки Авто-ускорения сохранены');
+        showToast('success', t('settings.autoBoostSaved'));
       } catch (err) {
         showError('Не удалось сохранить настройки: ' + err.message);
       } finally {
         btn.disabled = false;
       }
+    });
+  }
+
+  /**
+   * Re-applies the current locale to both the static markup (data-i18n) and
+   * anything already rendered dynamically, so switching language takes
+   * effect immediately without a restart.
+   */
+  function applyLanguage() {
+    applyStaticTranslations();
+    document.documentElement.lang = window.NeuroBoostI18n.getLocale();
+    $('#page-title').textContent = pageTitle(state.view);
+    renderTelemetryStatus();
+    if (state.debloatCatalog.length) renderDebloatList();
+    if (state.diskCategories.length) {
+      renderDiskList();
+      updateDiskCleanButton();
+    }
+    if (state.allProcesses.length) renderProcessTable(filterProcesses());
+  }
+
+  // ---- onboarding ---------------------------------------------------------
+  function wireOnboarding() {
+    const overlay = $('#onboarding');
+    const closeBtn = $('#onboardingCloseBtn');
+
+    const close = async () => {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      try {
+        state.settings = await call(window.neuroboost.settings.update({ onboardingSeen: true }));
+      } catch (_) {
+        /* not worth bothering the user about */
+      }
+    };
+
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') close();
+    });
+  }
+
+  function maybeShowOnboarding() {
+    if (state.settings && !state.settings.onboardingSeen) {
+      const overlay = $('#onboarding');
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+      $('#onboardingCloseBtn').focus();
+    }
+  }
+
+  // ---- keyboard navigation --------------------------------------------------
+  function wireKeyboardNav() {
+    // Ctrl+1..8 jumps between sections - a system tool gets used repeatedly,
+    // and reaching for the mouse every time is friction.
+    const views = ['overview', 'debloat', 'telemetry', 'ram', 'processes', 'startup', 'disk', 'settings'];
+    document.addEventListener('keydown', (e) => {
+      if (!e.ctrlKey || e.altKey || e.metaKey) return;
+      const idx = Number(e.key) - 1;
+      if (idx >= 0 && idx < views.length) {
+        e.preventDefault();
+        switchView(views[idx]);
+      }
+    });
+
+    // Make the nav a proper tablist for screen readers.
+    $all('.nb-nav-item').forEach((btn) => {
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', String(btn.classList.contains('is-active')));
     });
   }
 
@@ -1024,6 +1094,8 @@
     wireRamProgress();
     wireDiskProgress();
     wireSettings();
+    wireOnboarding();
+    wireKeyboardNav();
 
     $('#debloatRemoveBtn').addEventListener('click', runDebloatRemoval);
     $('#debloatRescanBtn').addEventListener('click', loadDebloatCatalog);
@@ -1042,7 +1114,14 @@
       loadTelemetryStatus();
       loadOverview();
       loadMemoryInfo();
-      loadSettings();
+      loadSettings().then(() => {
+        if (state.settings && state.settings.language) {
+          setLocale(state.settings.language);
+          applyLanguage();
+        }
+        maybeShowOnboarding();
+      });
+      loadAppVersion();
     });
   }
 

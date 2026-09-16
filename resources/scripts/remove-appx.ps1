@@ -15,23 +15,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-
-$protectedNames = @(
-  'Microsoft.WindowsStore', 'Microsoft.DesktopAppInstaller', 'Microsoft.WindowsCalculator',
-  'Microsoft.WindowsNotepad', 'Microsoft.Windows.Photos',
-  'Microsoft.Windows.ShellExperienceHost', 'Microsoft.Windows.StartMenuExperienceHost',
-  'Microsoft.Windows.SecHealthUI', 'Microsoft.Windows.SecureAssessmentBrowser',
-  'Microsoft.Windows.CloudExperienceHost', 'Microsoft.Windows.ContentDeliveryManager',
-  'Microsoft.Windows.ParentalControls', 'Microsoft.Windows.PeopleExperienceHost',
-  'Microsoft.Windows.PinningConfirmationDialog', 'Microsoft.Windows.NarratorQuickStart',
-  'Microsoft.Windows.OOBENetworkCaptivePortal', 'Microsoft.Windows.OOBENetworkConnectionFlow',
-  'Microsoft.Windows.AssignedAccessLockApp', 'Microsoft.Windows.CapturePicker',
-  'Microsoft.Windows.XGpuEjectDialog', 'Microsoft.Windows.CBSPreview',
-  'Microsoft.AAD.BrokerPlugin', 'Microsoft.AccountsControl', 'Microsoft.CredDialogHost',
-  'Microsoft.ECApp', 'Microsoft.LockApp', 'Microsoft.MicrosoftEdge', 'Microsoft.MicrosoftEdgeDevToolsClient',
-  'MicrosoftWindows.Client.CBS', 'MicrosoftWindows.Client.Core', 'MicrosoftWindows.Client.FileExp',
-  'MicrosoftWindows.Client.WebExperience'
-)
+. (Join-Path $PSScriptRoot 'lib\appx-safety.ps1')
 
 try {
   $pkg = Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue |
@@ -43,7 +27,7 @@ try {
     exit 0
   }
 
-  if ($pkg.NonRemovable -or $pkg.IsFramework -or $pkg.IsResourcePackage -or ($protectedNames -contains $pkg.Name)) {
+  if (-not (Test-AppRemovable -Package $pkg)) {
     Write-Error "Refusing to remove '$($pkg.Name)': it is protected or a system component."
     exit 1
   }

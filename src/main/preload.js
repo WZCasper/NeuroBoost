@@ -59,5 +59,9 @@ contextBridge.exposeInMainWorld('neuroboost', {
     get: () => invoke('settings:get'),
     update: (partial) => invoke('settings:update', partial)
   },
+  logs: {
+    reveal: () => invoke('logs:reveal')
+  },
+  getVersion: () => invoke('app:getVersion'),
   openExternal: (url) => invoke('app:openExternal', url)
 });

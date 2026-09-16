@@ -2,6 +2,8 @@
 
 const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, Notification } = require('electron');
 const path = require('path');
+const { autoUpdater } = require('electron-updater');
+const { log, logFilePath } = require('./lib/logger');
 
 const isDev = !app.isPackaged;
 
@@ -152,6 +154,7 @@ app.whenReady().then(async () => {
   await verifyElevationOrWarn();
   registerIpcHandlers();
   createTray();
+  log.info('App starting, version ' + app.getVersion());
 
   const { getSettings } = require('./lib/settings');
   const settings = getSettings();
@@ -175,6 +178,11 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow(false);
     else showMainWindow();
   });
+
+  if (app.isPackaged) {
+    autoUpdater.logger = { info: log.info, warn: log.warn, error: log.error, debug: () => {} };
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => log.warn('Update check failed: ' + err.message));
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -189,9 +197,11 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  log.info('App quitting');
   try {
-    const { stopAutoBoost } = require('./lib/process-manager');
+    const { stopAutoBoost, stopProcessWorker } = require('./lib/process-manager');
     stopAutoBoost();
+    stopProcessWorker();
   } catch (_) {
     /* ignore */
   }
@@ -237,7 +247,9 @@ function registerIpcHandlers() {
         const data = await handler(...args);
         return { ok: true, data };
       } catch (err) {
-        return { ok: false, error: err && err.message ? err.message : String(err) };
+        const message = err && err.message ? err.message : String(err);
+        log.error(`[${channel}] ${message}`);
+        return { ok: false, error: message };
       }
     });
   };
@@ -318,4 +330,9 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('app:openExternal', (_event, url) => shell.openExternal(url));
+  ipcMain.handle('app:getVersion', () => app.getVersion());
+  ipcMain.handle('logs:reveal', () => {
+    shell.showItemInFolder(logFilePath());
+    return true;
+  });
 }

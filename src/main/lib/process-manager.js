@@ -1,61 +1,16 @@
 'use strict';
 
 const path = require('path');
-const { runPowerShell, runPowerShellFile } = require('./powershell-runner');
+const { runPowerShellFile } = require('./powershell-runner');
 const { scriptsDir } = require('./paths');
+const { listProcessesViaWorker, stopWorker: stopProcessWorker } = require('./process-worker');
 
-// CPU% is computed from two Get-Process snapshots 400ms apart (classic
-// TotalProcessorTime delta), NOT from Win32_PerfFormattedData_PerfProc_Process.
-// The WMI performance-counter provider is a well-known source of multi-second
-// stalls (and outright hangs) on real-world machines whose perf counters are
-// stale or corrupted - Get-Process itself is a plain, fast .NET call with no
-// such dependency. Every per-process property read is wrapped in try/catch:
-// a handful of protected/system processes throw "Access is denied" on
-// .PriorityClass or .TotalProcessorTime even for an elevated caller, and one
-// such process must never take the whole listing down.
-const LIST_SCRIPT = `
-$core = [Math]::Max([Environment]::ProcessorCount, 1)
-
-function Snapshot {
-  Get-Process | ForEach-Object {
-    try {
-      [pscustomobject]@{
-        Id = $_.Id
-        Name = $_.ProcessName
-        Cpu = $_.TotalProcessorTime
-        Mem = $_.WorkingSet64
-        Priority = $(try { $_.PriorityClass.ToString() } catch { $null })
-        Path = $(try { $_.Path } catch { $null })
-      }
-    } catch { $null }
-  } | Where-Object { $_ -ne $null }
-}
-
-$first = Snapshot
-Start-Sleep -Milliseconds 400
-$second = Snapshot
-
-$firstById = @{}
-foreach ($p in $first) { $firstById[$p.Id] = $p }
-
-$result = foreach ($p in $second) {
-  $prev = $firstById[$p.Id]
-  if (-not $prev) { continue }
-  $deltaMs = 0
-  try { $deltaMs = ($p.Cpu - $prev.Cpu).TotalMilliseconds } catch { $deltaMs = 0 }
-  $cpuPercent = if ($deltaMs -gt 0) { [Math]::Round(($deltaMs / 400.0) / $core * 100, 1) } else { 0 }
-  [pscustomobject]@{
-    pid = $p.Id
-    name = $p.Name
-    cpuPercent = $cpuPercent
-    workingSetMB = [Math]::Round($p.Mem / 1MB, 1)
-    priority = $p.Priority
-    path = $p.Path
-  }
-}
-
-ConvertTo-Json -InputObject $result -Compress -Depth 4
-`;
+// Process listing runs through a long-lived PowerShell worker
+// (process-worker.js) instead of spawning a fresh powershell.exe on every
+// call: Auto-Boost polls every few seconds indefinitely, and starting a new
+// PowerShell process each time is real, avoidable overhead. See
+// list-processes-worker.ps1 for the actual snapshot/CPU% logic (unchanged
+// from before - just moved into a process that stays alive).
 
 const ALLOWED_PRIORITIES = ['Idle', 'BelowNormal', 'Normal', 'AboveNormal', 'High'];
 
@@ -136,8 +91,7 @@ async function listProcesses() {
 
   inFlightList = (async () => {
     try {
-      const raw = await runPowerShell(LIST_SCRIPT, { timeoutMs: 12000 });
-      const rows = JSON.parse(raw.trim());
+      const rows = await listProcessesViaWorker();
       const arr = Array.isArray(rows) ? rows : [rows];
       return arr
         .map((r) => ({
@@ -203,7 +157,21 @@ function pickBoostTarget(procs) {
 async function startAutoBoost(options = {}, onEvent) {
   if (autoBoostTimer) return { running: true };
 
-  const intervalMs = Math.max(options.intervalMs || 8000, 3000);
+  // Adaptive polling: while nothing heavy is running there's nothing to
+  // react to, so back off to a much slower cadence instead of waking up
+  // every few seconds forever. A tool that claims to speed up the machine
+  // shouldn't itself be a constant background cost. Snaps back to the fast
+  // interval the moment a boost target appears.
+  const activeIntervalMs = Math.max(options.intervalMs || 8000, 3000);
+  const idleIntervalMs = activeIntervalMs * 4;
+  let currentIntervalMs = activeIntervalMs;
+
+  const reschedule = (nextIntervalMs) => {
+    if (nextIntervalMs === currentIntervalMs || !autoBoostTimer) return;
+    currentIntervalMs = nextIntervalMs;
+    clearInterval(autoBoostTimer);
+    autoBoostTimer = setInterval(tick, currentIntervalMs);
+  };
 
   const tick = async () => {
     try {
@@ -225,6 +193,7 @@ async function startAutoBoost(options = {}, onEvent) {
           onEvent({ type: 'holding', name: target.name, pid: target.pid, cpuPercent: target.cpuPercent });
         }
         autoBoostTarget = { pid: target.pid, name: target.name };
+        reschedule(activeIntervalMs);
 
         for (const p of procs) {
           if (DEPRIORITIZE_NAMES.has(p.name.toLowerCase()) && p.priority === 'Normal' && p.pid !== target.pid) {
@@ -240,13 +209,14 @@ async function startAutoBoost(options = {}, onEvent) {
         if (onEvent) {
           onEvent({ type: 'idle', topName: top ? top.name : null, topCpu: top ? top.cpuPercent : 0 });
         }
+        reschedule(idleIntervalMs);
       }
     } catch (err) {
       if (onEvent) onEvent({ type: 'error', message: err.message });
     }
   };
 
-  autoBoostTimer = setInterval(tick, intervalMs);
+  autoBoostTimer = setInterval(tick, currentIntervalMs);
   tick(); // run once immediately instead of waiting for the first interval
 
   return { running: true };
@@ -264,4 +234,4 @@ async function stopAutoBoost() {
   return { running: false };
 }
 
-module.exports = { listProcesses, setProcessPriority, killProcess, startAutoBoost, stopAutoBoost, setAutoBoostConfig, CRITICAL_NAMES };
+module.exports = { listProcesses, setProcessPriority, killProcess, startAutoBoost, stopAutoBoost, setAutoBoostConfig, pickBoostTarget, stopProcessWorker, CRITICAL_NAMES, HEAVY_APP_NAMES };
