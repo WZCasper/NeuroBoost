@@ -14,10 +14,11 @@ const { scriptsDir } = require('./paths');
 async function createRestorePoint(description) {
   try {
     const scriptPath = path.join(scriptsDir(), 'create-restore-point.ps1');
-    await runPowerShellFile(scriptPath, ['-Description', description || 'NeuroBoost'], 30000);
-    return { created: true };
+    const raw = await runPowerShellFile(scriptPath, ['-Description', description || 'NeuroBoost'], 60000);
+    const parsed = JSON.parse(raw.trim());
+    return { created: !!parsed.created, reason: parsed.reason || 'unknown', message: parsed.message || null };
   } catch (err) {
-    return { created: false, reason: err.message };
+    return { created: false, reason: 'error', message: err.message };
   }
 }
 

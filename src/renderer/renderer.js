@@ -414,9 +414,7 @@
       results.forEach((r) => appendDebloatProgress(r));
       const removed = results.filter((r) => r.status === 'removed').length;
       showToast('success', t('debloat.result', { removed: removed, total: results.length }));
-      if (restorePoint && restorePoint.created) {
-        showToast('info', t('restorePoint.created'));
-      }
+      reportRestorePoint(restorePoint);
       await loadDebloatCatalog();
     } catch (err) {
       showError('Ошибка при удалении приложений: ' + err.message);
@@ -436,6 +434,25 @@
     const existing = $('#debloatProgress [data-app-id="' + CSS.escape(entry.id) + '"]');
     if (existing) existing.replaceWith(el);
     else $('#debloatProgress').appendChild(el);
+  }
+
+  /**
+   * Tells the user the truth about the safety net: "created", "one already
+   * exists from today", or - importantly - "System Protection is off, so
+   * there is NO restore point". Claiming protection that doesn't exist
+   * would be worse than offering none.
+   */
+  function reportRestorePoint(rp) {
+    if (!rp) return;
+    if (rp.created) {
+      showToast('info', t('restorePoint.created'));
+    } else if (rp.reason === 'throttled') {
+      showToast('info', t('restorePoint.throttled'));
+    } else if (rp.reason === 'disabled') {
+      showToast('error', t('restorePoint.disabled'));
+    } else {
+      showToast('error', t('restorePoint.error'));
+    }
   }
 
   // ---- telemetry --------------------------------------------------------
@@ -482,9 +499,7 @@
         $('#telemetryStatusText').textContent = 'Настроено \u00b7 применено: ' + result.changed;
         showToast('success', t('telemetry.applied', { count: result.changed }));
       }
-      if (result.restorePoint && result.restorePoint.created) {
-        showToast('info', t('restorePoint.created'));
-      }
+      reportRestorePoint(result.restorePoint);
     } catch (err) {
       showError('Не удалось применить настройки телеметрии: ' + err.message);
     } finally {
@@ -682,8 +697,11 @@
         if (!confirmed) return;
         btn.disabled = true;
         try {
-          await call(window.neuroboost.process.kill(pid, name));
-          showToast('success', t('process.killed', { name: name }));
+          const res = await call(window.neuroboost.process.kill(pid, name));
+          showToast(
+            'success',
+            res.method === 'forced' ? t('process.killedForced', { name: name }) : t('process.killedGraceful', { name: name })
+          );
           refreshProcesses();
         } catch (err) {
           showError('Не удалось завершить процесс: ' + err.message);
@@ -933,6 +951,14 @@
     const s = state.settings;
     if (!s) return;
     $('#settingStartWithWindows').checked = !!s.startWithWindows;
+    // Verify against the actual scheduled task - the stored flag can drift
+    // if the task was removed outside NeuroBoost.
+    window.neuroboost.settings
+      .autostartStatus()
+      .then((r) => {
+        if (r && r.ok) $('#settingStartWithWindows').checked = !!r.data;
+      })
+      .catch(() => {});
     $('#settingMinimizeToTray').checked = !!s.minimizeToTray;
     $('#settingCpuThreshold').value = s.autoBoostCpuThreshold;
     $('#settingCpuThresholdValue').textContent = s.autoBoostCpuThreshold + '%';

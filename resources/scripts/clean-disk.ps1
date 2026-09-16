@@ -42,6 +42,32 @@ function Clear-FolderContents {
 $results = New-Object System.Collections.Generic.List[object]
 $totalFreed = [int64]0
 
+function Get-BrowserCachePaths {
+  param([string]$UserDataPath)
+  $paths = @()
+  if (-not (Test-Path $UserDataPath)) { return $paths }
+  Get-ChildItem -Path $UserDataPath -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -eq 'Default' -or $_.Name -like 'Profile *' } |
+    ForEach-Object {
+      foreach ($sub in @('Cache', 'Code Cache', 'GPUCache')) {
+        $p = Join-Path $_.FullName $sub
+        if (Test-Path $p) { $paths += $p }
+      }
+    }
+  return $paths
+}
+
+function Get-FirefoxCachePaths {
+  $paths = @()
+  $root = Join-Path $env:LOCALAPPDATA 'Mozilla\Firefox\Profiles'
+  if (-not (Test-Path $root)) { return $paths }
+  Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+    $p = Join-Path $_.FullName 'cache2'
+    if (Test-Path $p) { $paths += $p }
+  }
+  return $paths
+}
+
 function Get-RecycleBinSize {
   $total = [int64]0
   $drives = [System.IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady }
@@ -65,8 +91,9 @@ foreach ($id in $selected) {
       $p = Join-Path $env:ProgramData 'Microsoft\Windows\WER'
       $targetPaths = @((Join-Path $p 'ReportArchive'), (Join-Path $p 'ReportQueue'))
     }
-    'chrome_cache' { $targetPaths = @((Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data\Default\Cache')) }
-    'edge_cache' { $targetPaths = @((Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\User Data\Default\Cache')) }
+    'chrome_cache' { $targetPaths = @(Get-BrowserCachePaths (Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data')) }
+    'edge_cache' { $targetPaths = @(Get-BrowserCachePaths (Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\User Data')) }
+    'firefox_cache' { $targetPaths = @(Get-FirefoxCachePaths) }
     default { continue }
   }
 

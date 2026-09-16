@@ -17,7 +17,9 @@
 
 !macro customUnInstall
   ${ifNot} ${isUpdated}
-    ; 1. "Start with Windows" entry, written via Electron's setLoginItemSettings
+    ; 1. Autostart scheduled task (see resources/scripts/set-autostart.ps1),
+    ;    plus any legacy Run-key entry left by older versions.
+    nsExec::ExecToLog 'schtasks /Delete /TN "NeuroBoostAutoStart" /F'
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "NeuroBoost"
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Electron"
 

@@ -48,10 +48,39 @@ $categories.Add([pscustomobject]@{ id = 'update_cache'; sizeBytes = Get-FolderSi
 $categories.Add([pscustomobject]@{ id = 'delivery_opt'; sizeBytes = Get-FolderSize (Join-Path $env:SystemRoot 'SoftwareDistribution\DeliveryOptimization\Cache') })
 $categories.Add([pscustomobject]@{ id = 'error_reports'; sizeBytes = Get-FolderSize (Join-Path $env:ProgramData 'Microsoft\Windows\WER') })
 
-$chromeCache = Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data\Default\Cache'
-$categories.Add([pscustomobject]@{ id = 'chrome_cache'; sizeBytes = Get-FolderSize $chromeCache })
+# Enumerate every browser profile ("Default", "Profile 1", "Profile 2"...),
+# not just Default: people with multiple profiles would otherwise be shown
+# a fraction of what is actually on disk.
+function Get-BrowserCachePaths {
+  param([string]$UserDataPath)
+  $paths = @()
+  if (-not (Test-Path $UserDataPath)) { return $paths }
+  Get-ChildItem -Path $UserDataPath -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -eq 'Default' -or $_.Name -like 'Profile *' } |
+    ForEach-Object {
+      foreach ($sub in @('Cache', 'Code Cache', 'GPUCache')) {
+        $p = Join-Path $_.FullName $sub
+        if (Test-Path $p) { $paths += $p }
+      }
+    }
+  return $paths
+}
 
-$edgeCache = Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\User Data\Default\Cache'
-$categories.Add([pscustomobject]@{ id = 'edge_cache'; sizeBytes = Get-FolderSize $edgeCache })
+$chromePaths = Get-BrowserCachePaths (Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data')
+$chromeSize = ($chromePaths | ForEach-Object { Get-FolderSize $_ } | Measure-Object -Sum).Sum
+$categories.Add([pscustomobject]@{ id = 'chrome_cache'; sizeBytes = [int64]($chromeSize | ForEach-Object { if ($_) { $_ } else { 0 } }) })
+
+$edgePaths = Get-BrowserCachePaths (Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\User Data')
+$edgeSize = ($edgePaths | ForEach-Object { Get-FolderSize $_ } | Measure-Object -Sum).Sum
+$categories.Add([pscustomobject]@{ id = 'edge_cache'; sizeBytes = [int64]($edgeSize | ForEach-Object { if ($_) { $_ } else { 0 } }) })
+
+$firefoxProfiles = Join-Path $env:LOCALAPPDATA 'Mozilla\Firefox\Profiles'
+$ffSize = 0
+if (Test-Path $firefoxProfiles) {
+  $ffSize = (Get-ChildItem -Path $firefoxProfiles -Directory -ErrorAction SilentlyContinue |
+    ForEach-Object { Get-FolderSize (Join-Path $_.FullName 'cache2') } | Measure-Object -Sum).Sum
+}
+if ($null -eq $ffSize) { $ffSize = 0 }
+$categories.Add([pscustomobject]@{ id = 'firefox_cache'; sizeBytes = [int64]$ffSize })
 
 ConvertTo-Json -InputObject $categories -Compress -Depth 3

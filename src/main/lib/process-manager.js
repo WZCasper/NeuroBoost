@@ -103,12 +103,18 @@ async function killProcess(pid, name) {
   if (!pid || pid <= 4) {
     throw new Error('Недопустимый PID.');
   }
+  // Try a graceful close first (CloseMainWindow lets the app run its own
+  // save/confirm logic), and only escalate to a hard kill if it is still
+  // running after a grace period. A hard kill straight away guarantees data
+  // loss in anything with unsaved work.
+  const scriptPath = path.join(scriptsDir(), 'stop-process.ps1');
   try {
-    process.kill(pid);
+    const raw = await runPowerShellFile(scriptPath, ['-ProcessId', String(pid)], 15000);
+    const result = JSON.parse(raw.trim());
+    return { pid, killed: true, method: result.method };
   } catch (err) {
     throw new Error(err && err.message ? err.message : String(err));
   }
-  return { pid, killed: true };
 }
 
 function pickBoostTarget(procs) {

@@ -159,11 +159,11 @@ app.whenReady().then(async () => {
   const { getSettings } = require('./lib/settings');
   const settings = getSettings();
 
-  if (process.platform === 'win32') {
-    app.setLoginItemSettings({ openAtLogin: !!settings.startWithWindows, path: process.execPath });
-  }
-
-  const wasAutoLaunched = process.platform === 'win32' && app.getLoginItemSettings().wasOpenedAtLogin;
+  // Autostart is handled by a scheduled task (see lib/autostart.js), not
+  // setLoginItemSettings: Windows will not auto-start an app that requires
+  // elevation from a Run key, which is exactly what NeuroBoost does.
+  // The task passes --start-minimized so a logon launch goes to the tray.
+  const wasAutoLaunched = process.argv.includes('--start-minimized');
   createWindow(wasAutoLaunched);
 
   if (settings.autoBoostEnabledOnLaunch) {
@@ -240,6 +240,7 @@ function registerIpcHandlers() {
   const { scanDiskCategories, cleanDiskCategories } = require('./lib/disk-cleaner');
   const { createRestorePoint } = require('./lib/restore-point');
   const { getSettings, updateSettings } = require('./lib/settings');
+  const { getAutostartStatus, setAutostart } = require('./lib/autostart');
 
   const safe = (channel, handler) => {
     ipcMain.handle(channel, async (_event, ...args) => {
@@ -318,16 +319,22 @@ function registerIpcHandlers() {
   safe('restorePoint:create', (description) => createRestorePoint(description));
 
   safe('settings:get', () => getSettings());
-  safe('settings:update', (partial) => {
-    const next = updateSettings(partial);
+  safe('settings:update', async (partial) => {
+    // Autostart must be applied through the scheduled task and then
+    // re-read, so a failure surfaces to the user instead of the UI showing
+    // a toggle that silently did nothing.
     if (process.platform === 'win32' && typeof partial.startWithWindows === 'boolean') {
-      app.setLoginItemSettings({ openAtLogin: partial.startWithWindows, path: process.execPath });
+      await setAutostart(partial.startWithWindows);
+      partial = { ...partial, startWithWindows: await getAutostartStatus() };
     }
+    const next = updateSettings(partial);
     if (partial.autoBoostCpuThreshold || partial.customHeavyApps) {
       setAutoBoostConfig({ cpuThreshold: next.autoBoostCpuThreshold, customHeavyApps: next.customHeavyApps });
     }
     return next;
   });
+
+  safe('settings:autostartStatus', () => getAutostartStatus());
 
   ipcMain.handle('app:openExternal', (_event, url) => shell.openExternal(url));
   ipcMain.handle('app:getVersion', () => app.getVersion());
