@@ -9,7 +9,7 @@
   "scripts": {
     "build:css": "tailwindcss -i ./src/renderer/input.css -o ./src/renderer/styles.css --minify",
     "start": "npm run build:css && electron .",
-    "test": "node --test test/*.test.js",
+    "test": "node --test \"test/**/*.test.js\"",
     "postinstall": "electron-builder install-app-deps",
     "dist": "npm run build:css && electron-builder --win nsis --publish never",
     "dist:dir": "npm run build:css && electron-builder --win nsis --dir --publish never"
@@ -34,8 +34,14 @@
       "!**/*.map"
     ],
     "extraResources": [
-      { "from": "resources/scripts", "to": "scripts" },
-      { "from": "resources/tray-icon.png", "to": "tray-icon.png" }
+      {
+        "from": "resources/scripts",
+        "to": "scripts"
+      },
+      {
+        "from": "resources/tray-icon.png",
+        "to": "tray-icon.png"
+      }
     ],
     "publish": {
       "provider": "github",
@@ -48,7 +54,12 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "requestedExecutionLevel": "requireAdministrator"
     },
