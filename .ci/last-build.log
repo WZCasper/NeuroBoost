@@ -1,1 +1,5 @@
-No build-output.log was produced by this run.
+
+> neuroboost@1.0.0 test
+> node --test "test/**/*.test.js"
+
+Could not find 'D:\a\NeuroBoost\NeuroBoost\test\**\*.test.js'
