@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, Notification } =
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const { log, logFilePath } = require('./lib/logger');
+const { isAllowedExternalUrl } = require('./lib/pure');
 
 const isDev = !app.isPackaged;
 
@@ -54,6 +55,16 @@ function createWindow(startHidden) {
   });
 
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+
+  // Renderer content is fully local. Refuse every attempt to open a new
+  // window or navigate away from the bundled UI: an app running as
+  // Administrator must never be steerable to a remote page, even if a future
+  // bug lets a stray link or script reach the renderer.
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== mainWindow.webContents.getURL()) event.preventDefault();
+  });
+  mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
 
   mainWindow.once('ready-to-show', () => {
     if (!startHidden) mainWindow.show();
@@ -180,10 +191,82 @@ app.whenReady().then(async () => {
   });
 
   if (app.isPackaged) {
-    autoUpdater.logger = { info: log.info, warn: log.warn, error: log.error, debug: () => {} };
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => log.warn('Update check failed: ' + err.message));
+    setupAutoUpdater();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Updates.
+//
+// NeuroBoost runs as Administrator, so an installer it launches also runs as
+// Administrator. Nothing is therefore downloaded or installed silently: the
+// user is told a new version exists and decides. Downgrades stay disabled, and
+// nothing is installed as a side effect of merely quitting the app.
+//
+// NOTE: integrity here rests on the SHA-512 in latest.yml, which is published
+// in the same GitHub Release as the installer. That guards against corruption,
+// not against a compromised release. Code-signing the installer (see README,
+// "Code signing") is what closes that gap.
+// ---------------------------------------------------------------------------
+function setupAutoUpdater() {
+  autoUpdater.logger = { info: log.info, warn: log.warn, error: log.error, debug: () => {} };
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.allowDowngrade = false;
+  autoUpdater.allowPrerelease = false;
+
+  let promptOpen = false;
+
+  autoUpdater.on('update-available', async (info) => {
+    if (promptOpen) return;
+    promptOpen = true;
+    try {
+      const { response } = await dialog.showMessageBox(mainWindow || undefined, {
+        type: 'info',
+        title: 'NeuroBoost',
+        message: 'Доступна новая версия ' + info.version,
+        detail: 'Скачать обновление сейчас? Установка начнётся только после вашего подтверждения.',
+        buttons: ['Скачать', 'Позже'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true
+      });
+      if (response === 0) {
+        log.info('User accepted update ' + info.version + ', downloading');
+        await autoUpdater.downloadUpdate();
+      } else {
+        log.info('User postponed update ' + info.version);
+      }
+    } catch (err) {
+      log.warn('Update download failed: ' + err.message);
+    } finally {
+      promptOpen = false;
+    }
+  });
+
+  autoUpdater.on('update-downloaded', async (info) => {
+    try {
+      const { response } = await dialog.showMessageBox(mainWindow || undefined, {
+        type: 'question',
+        title: 'NeuroBoost',
+        message: 'Версия ' + info.version + ' загружена',
+        detail: 'Установить и перезапустить NeuroBoost сейчас?',
+        buttons: ['Установить и перезапустить', 'Позже'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true
+      });
+      if (response === 0) {
+        isQuitting = true;
+        autoUpdater.quitAndInstall();
+      }
+    } catch (err) {
+      log.warn('Update install failed: ' + err.message);
+    }
+  });
+
+  autoUpdater.checkForUpdates().catch((err) => log.warn('Update check failed: ' + err.message));
+}
 
 app.on('window-all-closed', () => {
   // If we get here at all, the window really did close - either
@@ -219,6 +302,34 @@ function handleAutoBoostEvent(event) {
 }
 
 // ---------------------------------------------------------------------------
+// IPC trust boundary.
+//
+// Every handler performs privileged, system-wide actions, so each one checks
+// that the call really came from NeuroBoost's own bundled page and not from
+// any other frame or window that might ever exist in this process.
+//
+// The trust decision is made on facts that cannot be confused by path
+// encoding differences (spaces, Cyrillic user names, "#" in a folder name):
+// the call must come from the one BrowserWindow we created, from its top
+// frame, and that frame must be a local file: page. Comparing full URL
+// strings would be brittle across install locations and could lock the whole
+// UI out of its own backend.
+function assertTrustedSender(event) {
+  const frame = event && event.senderFrame;
+  const isMainWindow = !!mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents;
+  const isTopFrame = !!frame && frame === mainWindow.webContents.mainFrame;
+  let isLocalFile = false;
+  try {
+    isLocalFile = !!frame && new URL(frame.url).protocol === 'file:';
+  } catch (_) {
+    isLocalFile = false;
+  }
+  if (!isMainWindow || !isTopFrame || !isLocalFile) {
+    throw new Error('Untrusted IPC sender.');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // IPC - every handler is wrapped so renderer calls always resolve with a
 // { ok, data } or { ok:false, error } shape instead of throwing across the
 // process boundary.
@@ -243,8 +354,9 @@ function registerIpcHandlers() {
   const { getAutostartStatus, setAutostart } = require('./lib/autostart');
 
   const safe = (channel, handler) => {
-    ipcMain.handle(channel, async (_event, ...args) => {
+    ipcMain.handle(channel, async (event, ...args) => {
       try {
+        assertTrustedSender(event);
         const data = await handler(...args);
         return { ok: true, data };
       } catch (err) {
@@ -336,9 +448,20 @@ function registerIpcHandlers() {
 
   safe('settings:autostartStatus', () => getAutostartStatus());
 
-  ipcMain.handle('app:openExternal', (_event, url) => shell.openExternal(url));
-  ipcMain.handle('app:getVersion', () => app.getVersion());
-  ipcMain.handle('logs:reveal', () => {
+  ipcMain.handle('app:openExternal', (event, url) => {
+    assertTrustedSender(event);
+    if (!isAllowedExternalUrl(url)) {
+      log.warn('Blocked openExternal for non-allowlisted URL');
+      throw new Error('URL is not allowed.');
+    }
+    return shell.openExternal(url);
+  });
+  ipcMain.handle('app:getVersion', (event) => {
+    assertTrustedSender(event);
+    return app.getVersion();
+  });
+  ipcMain.handle('logs:reveal', (event) => {
+    assertTrustedSender(event);
     shell.showItemInFolder(logFilePath());
     return true;
   });

@@ -73,22 +73,39 @@ public static class NeuroBoostMemory
     const uint TOKEN_QUERY = 0x0008;
     const uint SE_PRIVILEGE_ENABLED = 0x0002;
 
+    const int ERROR_NOT_ALL_ASSIGNED = 1300;
+
     public static bool EnablePrivilege(string privilege)
     {
-        IntPtr hToken;
-        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out hToken))
-            return false;
+        IntPtr hToken = IntPtr.Zero;
+        try
+        {
+            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out hToken))
+                return false;
 
-        LUID luid;
-        if (!LookupPrivilegeValue(null, privilege, out luid))
-            return false;
+            LUID luid;
+            if (!LookupPrivilegeValue(null, privilege, out luid))
+                return false;
 
-        TOKEN_PRIVILEGES tp = new TOKEN_PRIVILEGES();
-        tp.PrivilegeCount = 1;
-        tp.Luid = luid;
-        tp.Attributes = SE_PRIVILEGE_ENABLED;
+            TOKEN_PRIVILEGES tp = new TOKEN_PRIVILEGES();
+            tp.PrivilegeCount = 1;
+            tp.Luid = luid;
+            tp.Attributes = SE_PRIVILEGE_ENABLED;
 
-        return AdjustTokenPrivileges(hToken, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+            if (!AdjustTokenPrivileges(hToken, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero))
+                return false;
+
+            // AdjustTokenPrivileges returns TRUE even when it could not assign
+            // the privilege; the real outcome is in the last-error code. Without
+            // this check a non-elevated run would report success and the purge
+            // would then silently do nothing.
+            return System.Runtime.InteropServices.Marshal.GetLastWin32Error() != ERROR_NOT_ALL_ASSIGNED;
+        }
+        finally
+        {
+            // The token handle used to be leaked on every call.
+            if (hToken != IntPtr.Zero) CloseHandle(hToken);
+        }
     }
 }
 '@

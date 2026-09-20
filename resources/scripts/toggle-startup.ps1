@@ -24,6 +24,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib\startup-safety.ps1')
 
 $parts = $Id.Split('|', 3)
 $type = $parts[0]
@@ -60,10 +61,14 @@ try {
   }
   elseif ($type -eq 'folder') {
     $filePath = $parts[2]
-    if (-not (Test-Path $filePath)) {
+    if (-not $filePath -or -not (Test-Path -LiteralPath $filePath)) {
       Write-Error "Shortcut not found: $filePath"
       exit 1
     }
+
+    # The Id comes from the UI and this script runs as Administrator, so the
+    # path is validated by the shared rule in lib/startup-safety.ps1.
+    $filePath = Resolve-StartupShortcut -Path $filePath
 
     $dir = Split-Path $filePath -Parent
     $fileName = Split-Path $filePath -Leaf
@@ -74,11 +79,11 @@ try {
       if (-not (Test-Path $disabledDir)) {
         New-Item -ItemType Directory -Path $disabledDir -Force | Out-Null
       }
-      Move-Item -Path $filePath -Destination (Join-Path $disabledDir $fileName) -Force
+      Move-Item -LiteralPath $filePath -Destination (Join-Path $disabledDir $fileName) -Force
     }
     elseif ($Action -eq 'enable' -and $isCurrentlyDisabled) {
       $targetDir = Split-Path $dir -Parent
-      Move-Item -Path $filePath -Destination (Join-Path $targetDir $fileName) -Force
+      Move-Item -LiteralPath $filePath -Destination (Join-Path $targetDir $fileName) -Force
     }
 
     Write-Output 'OK'

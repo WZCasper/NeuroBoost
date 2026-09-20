@@ -1,10 +1,28 @@
 # NeuroBoost
 
 A safe, free, open-source system optimizer for Windows 10 and Windows 11:
-System Debloater, Telemetry Blocker, RAM (standby list) Cleaner, and a
-Process Priority Manager ("Auto-Boost"). Built with Electron + Tailwind CSS
-v4 + vanilla JavaScript, packaged with `electron-builder` into a single
-NSIS `Setup.exe`.
+System Debloater, Telemetry Blocker, RAM (standby list) Cleaner, a Process
+Priority Manager ("Auto-Boost"), a Startup Manager and a Disk Cleaner. Built
+with Electron + Tailwind CSS v4 + vanilla JavaScript, packaged with
+`electron-builder` into a single NSIS `Setup.exe`.
+
+## Features
+
+| Tab | What it does |
+| --- | --- |
+| Overview | System summary: Windows edition/build, memory, elevation status |
+| Apps | Lists AppX apps actually installed on this machine and removes the ones you select |
+| Telemetry | Reduces Windows diagnostic data; every change is recorded so **Restore defaults** reverts exactly what was changed |
+| Memory | Purges the standby list and trims process working sets, reporting real before/after numbers |
+| Processes | Live process list, priority control (capped at `High`), graceful-then-forced termination, Auto-Boost |
+| Startup | Enables/disables Run-key entries and Startup-folder shortcuts (same flag Task Manager uses) |
+| Disk | Cleans temp files, update cache, error reports, recycle bin and browser caches (Chrome, Edge, Firefox, all profiles) |
+| Settings | Language (ru/en), start with Windows, minimize to tray, Auto-Boost CPU threshold and custom app list |
+
+Also: a system restore point is requested before risky changes (Windows
+throttles these to one per 24 hours, and the app reports honestly when one
+could not be created), a tray icon with minimize-to-tray, and a persistent
+log (Settings shows how to open it).
 
 ## How it's put together
 
@@ -22,8 +40,15 @@ src/
       telemetry.js             apply/restore telemetry changes (with backup journal)
       ram-cleaner.js           real standby-list purge + working-set trim + memory stats
       process-manager.js       process listing, priority control, Auto-Boost
+      process-worker.js        long-lived PowerShell worker used for process polling
+      startup-manager.js       startup entries (Run keys + Startup folders)
+      disk-cleaner.js          temp/cache categories, scan + clean
+      restore-point.js         best-effort System Restore checkpoint
+      autostart.js             "start with Windows" via a scheduled task
+      settings.js / logger.js  persisted settings, rotating log file
+      pure.js                  Electron-free logic (unit-tested with plain Node)
   renderer/
-    index.html / renderer.js / input.css (→ styles.css via Tailwind CLI)
+    index.html / renderer.js / i18n.js / escape.js / input.css (→ styles.css via Tailwind CLI)
     fonts/                  Inter + JetBrains Mono, bundled locally (no CDN)
 resources/
   scripts/                 the actual .ps1 files, called by the lib/ modules
@@ -103,7 +128,7 @@ GitHub mobile app works too):
    "Build NeuroBoost installer" workflow → click **Run workflow**.
 3. Wait for the run to go green (a few minutes).
 4. Open the repository's **Releases** page (right sidebar on the repo home
-   page) → the latest release has `NeuroBoost-Setup-1.0.0.exe` attached as a
+   page) → the latest release has `NeuroBoost-Setup-<version>.exe` attached as a
    download.
 5. Copy that `.exe` to any Windows 10/11 PC and run it. Windows will show a
    UAC prompt (the app requires Administrator rights by design) — accept it,
@@ -112,6 +137,24 @@ GitHub mobile app works too):
 Every push to `main` builds and publishes a new release automatically. If a
 build ever fails, `.ci/last-build.log` in the repository always has the full
 log from the most recent run.
+
+### Updates
+
+An installed copy checks GitHub Releases at launch. Because NeuroBoost runs as
+Administrator, **nothing is downloaded or installed without your
+confirmation**: you are shown the new version and choose *Download*, and after
+the download you choose whether to install and restart now. Downgrades and
+installing-on-quit are disabled.
+
+### Code signing (not set up yet)
+
+The installer is currently **unsigned**. Update integrity relies on the
+SHA-512 hash in `latest.yml`, which is published in the same release as the
+installer - it detects corruption but cannot detect a compromised release.
+Windows SmartScreen will also warn about an unsigned installer. Signing needs
+a code-signing certificate, which this repository does not have; until one is
+configured, only install builds you obtained from this repository's Releases
+page.
 
 ## Building it yourself on a Windows PC (if/when you have terminal access)
 
@@ -130,7 +173,20 @@ npm start
 npm run dist
 ```
 
-The finished installer is written to `dist\NeuroBoost-Setup-1.0.0.exe`.
+The finished installer is written to `dist\NeuroBoost-Setup-<version>.exe`.
+
+## Tests
+
+```
+npm test                      # JavaScript unit tests (plain Node, no Electron needed)
+Invoke-Pester -Path ./test    # PowerShell tests (Pester 5, Windows)
+```
+
+Both suites also run on GitHub's Windows machine for **every pull request**
+(the *Tests* workflow), so a change shows green or red before it is merged.
+That workflow only reads the code: it never builds, releases or pushes. The
+installer build and the release happen only on `main`, and both steps refuse
+to run on any other branch.
 
 ## Adding an app icon (optional)
 

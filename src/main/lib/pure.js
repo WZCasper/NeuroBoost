@@ -59,4 +59,28 @@ function pickBoostTarget(procs, { cpuThreshold = 25, customHeavyApps = new Set()
   return procs.find((p) => p.cpuPercent >= cpuThreshold && !CRITICAL_NAMES.has(p.name.toLowerCase()));
 }
 
-module.exports = { mergeSettings, mergeTelemetryBackup, pickBoostTarget, CRITICAL_NAMES, HEAVY_APP_NAMES, DEPRIORITIZE_NAMES };
+// --- External URL allowlist -----------------------------------------------
+// Only these exact locations may ever be handed to the user's default
+// browser. Kept here (Electron-free) so the rule itself is unit-tested.
+const EXTERNAL_URL_ALLOWLIST = ['https://github.com/WZCasper/NeuroBoost'];
+
+function isAllowedExternalUrl(url) {
+  if (typeof url !== 'string') return false;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (_) {
+    return false;
+  }
+  if (parsed.protocol !== 'https:') return false;
+  // Reject credentials in the URL ("https://github.com/WZCasper/NeuroBoost@evil.com"
+  // style tricks) and any non-default port outright.
+  if (parsed.username || parsed.password || parsed.port) return false;
+  if (parsed.hostname !== 'github.com') return false;
+  // Compare on the normalized pathname so "/WZCasper/NeuroBoost/../../evil"
+  // cannot escape the allowed prefix after URL resolution.
+  const base = new URL(EXTERNAL_URL_ALLOWLIST[0]).pathname;
+  return parsed.pathname === base || parsed.pathname.startsWith(base + '/');
+}
+
+module.exports = { isAllowedExternalUrl, EXTERNAL_URL_ALLOWLIST, mergeSettings, mergeTelemetryBackup, pickBoostTarget, CRITICAL_NAMES, HEAVY_APP_NAMES, DEPRIORITIZE_NAMES };

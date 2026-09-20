@@ -9,7 +9,7 @@
   "scripts": {
     "build:css": "tailwindcss -i ./src/renderer/input.css -o ./src/renderer/styles.css --minify",
     "start": "npm run build:css && electron .",
-    "test": "node --test test/pure.test.js test/process-manager.test.js",
+    "test": "node --test test/pure.test.js test/process-manager.test.js test/escape.test.js test/external-url.test.js test/i18n.test.js",
     "postinstall": "electron-builder install-app-deps",
     "dist": "npm run build:css && electron-builder --win nsis --publish never",
     "dist:dir": "npm run build:css && electron-builder --win nsis --dir --publish never"

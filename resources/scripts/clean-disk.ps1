@@ -104,12 +104,17 @@ foreach ($id in $selected) {
   }
   elseif ($id -eq 'update_cache') {
     $before = ($targetPaths | ForEach-Object { Get-FolderSize $_ } | Measure-Object -Sum).Sum
+    # Windows Update must not be left in a different state than it was found
+    # in: only restart the service if it was actually running beforehand. A
+    # service the user (or policy) had stopped or disabled stays that way.
+    $wuSvc = Get-Service -Name wuauserv -ErrorAction SilentlyContinue
+    $wuWasRunning = ($null -ne $wuSvc) -and ($wuSvc.Status -eq 'Running')
     try {
-      Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
+      if ($wuWasRunning) { Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue }
       $targetPaths | ForEach-Object { Clear-FolderContents $_ }
     }
     finally {
-      Start-Service -Name wuauserv -ErrorAction SilentlyContinue
+      if ($wuWasRunning) { Start-Service -Name wuauserv -ErrorAction SilentlyContinue }
     }
     $after = ($targetPaths | ForEach-Object { Get-FolderSize $_ } | Measure-Object -Sum).Sum
   }
