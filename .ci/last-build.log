@@ -1,14 +1,14 @@
 
-> neuroboost@1.0.18 dist
+> neuroboost@1.0.19 dist
 > npm run build:css && electron-builder --win nsis --publish never
 
 
-> neuroboost@1.0.18 build:css
+> neuroboost@1.0.19 build:css
 > tailwindcss -i ./src/renderer/input.css -o ./src/renderer/styles.css --minify
 
 [3m[1m[34m≈[39m[22m[23m tailwindcss [34mv4.3.3[39m
 
-Done in [34m140ms[39m
+Done in [34m93ms[39m
   • electron-builder  version=26.15.3 os=10.0.26100
   • loaded configuration  file=package.json ("build" field)
   • executing @electron/rebuild  electronVersion=44.3.0 arch=x64 buildFromSource=false workspaceRoot=D:\a\NeuroBoost\NeuroBoost projectDir=./ appDir=./
@@ -20,11 +20,11 @@ Done in [34m140ms[39m
   • searching for node modules  pm=npm searchDir=D:\a\NeuroBoost\NeuroBoost
   • updating asar integrity executable resource  executablePath=dist\win-unpacked\NeuroBoost.exe
   • signing with signtool.exe  path=dist\win-unpacked\NeuroBoost.exe
-  • building        target=nsis file=dist\NeuroBoost-Setup-1.0.18.exe archs=x64 oneClick=false perMachine=true
+  • building        target=nsis file=dist\NeuroBoost-Setup-1.0.19.exe archs=x64 oneClick=false perMachine=true
   • downloaded      label=nsis-3.0.4.1.7z progress=100%
   • downloaded      label=7zip-win-x64.tar.gz progress=100%
   • signing with signtool.exe  path=dist\win-unpacked\resources\elevate.exe
   • downloaded      label=nsis-resources-3.4.1.7z progress=100%
-  • signing with signtool.exe  path=dist\NeuroBoost-Setup-1.0.18.__uninstaller.exe
-  • signing with signtool.exe  path=dist\NeuroBoost-Setup-1.0.18.exe
-  • building block map  blockMapFile=dist\NeuroBoost-Setup-1.0.18.exe.blockmap
+  • signing with signtool.exe  path=dist\NeuroBoost-Setup-1.0.19.__uninstaller.exe
+  • signing with signtool.exe  path=dist\NeuroBoost-Setup-1.0.19.exe
+  • building block map  blockMapFile=dist\NeuroBoost-Setup-1.0.19.exe.blockmap
