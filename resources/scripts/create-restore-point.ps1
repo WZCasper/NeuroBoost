@@ -12,6 +12,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib\restore-point-safety.ps1')
 
 # Report a structured result instead of just succeed/fail, so the UI can
 # tell the user the difference between "protected" and "System Protection
@@ -43,10 +44,9 @@ catch {
   $msg = $_.Exception.Message
   # Windows throttles MODIFY_SETTINGS checkpoints to one per 24h by default;
   # that is not a failure of this tool and an existing recent point still
-  # protects the user, so it is reported distinctly.
-  $reason = if ($msg -match '1440|frequency|too frequent') { 'throttled' }
-            elseif (-not $wasEnabled) { 'disabled' }
-            else { 'error' }
+  # protects the user, so it is reported distinctly. See
+  # lib/restore-point-safety.ps1 for how the reason is determined.
+  $reason = Get-RestorePointFailureReason -ExceptionMessage $msg -WasEnabled $wasEnabled
   [pscustomobject]@{ created = $false; reason = $reason; message = $msg } | ConvertTo-Json -Compress
   exit 0
 }
