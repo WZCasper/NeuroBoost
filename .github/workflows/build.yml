@@ -11,6 +11,13 @@ on:
 permissions:
   contents: write
 
+# One build at a time. Two overlapping runs would race on the version number
+# (derived from the run number) and on the push of the build log. Runs are
+# queued rather than cancelled so a half-finished release is never abandoned.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: windows-latest
@@ -58,8 +65,12 @@ jobs:
           npm run dist > build-output.log 2>&1
           exit /b %errorlevel%
 
+      # Releases and the log push are for main only. This workflow can also be
+      # started by hand on any branch; without this guard such a run would
+      # publish a public release from unreviewed code and `git push origin
+      # HEAD:main` would move main to that branch.
       - name: Publish installer as a GitHub Release
-        if: success()
+        if: success() && github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -79,7 +90,7 @@ jobs:
       # from every environment, so the build log is also committed straight
       # into the repo — always readable as a plain file.
       - name: Publish build log
-        if: always()
+        if: always() && github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
           git config user.name "neuroboost-ci"
@@ -92,5 +103,27 @@ jobs:
           }
           git add -f .ci/last-build.log
           git commit -m "ci: update last build log [skip ci]" --allow-empty
-          git push origin HEAD:main
-          Write-Host "log push exit code: $LASTEXITCODE"
+          # main may have moved while this build ran; rebase onto it and retry
+          # instead of failing on a non-fast-forward push.
+          $pushed = $false
+          foreach ($attempt in 1..3) {
+            # --autostash: `npm version` leaves package.json modified in this
+            # workspace, and git refuses to rebase over unstaged changes.
+            git pull --rebase --autostash origin main
+            if ($LASTEXITCODE -ne 0) {
+              # Never push from a half-finished rebase; back out and retry.
+              git rebase --abort 2>$null
+              Write-Host "log rebase attempt $attempt failed (exit $LASTEXITCODE), retrying"
+              Start-Sleep -Seconds (3 * $attempt)
+              continue
+            }
+            git push origin HEAD:main
+            if ($LASTEXITCODE -eq 0) { $pushed = $true; break }
+            Write-Host "log push attempt $attempt failed (exit $LASTEXITCODE), retrying"
+            Start-Sleep -Seconds (3 * $attempt)
+          }
+          if (-not $pushed) {
+            # The log is a diagnostic convenience: losing it must not fail an
+            # otherwise good build, but it must not vanish silently either.
+            Write-Host "::warning::Could not push .ci/last-build.log after 3 attempts"
+          }
