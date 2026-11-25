@@ -15,6 +15,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib\appx-safety.ps1')
+. (Join-Path $PSScriptRoot 'lib\icon-extract.ps1')
 
 try {
   $packages = Get-AppxPackage |
@@ -23,20 +24,31 @@ try {
 
   $result = foreach ($p in $packages) {
     $displayName = $p.Name
+    $icon = $null
     try {
       $manifest = Get-AppxPackageManifest -Package $p.PackageFullName -ErrorAction Stop
       $dn = $manifest.Package.Properties.DisplayName
       if ($dn -and -not $dn.ToString().StartsWith('ms-resource:')) {
         $displayName = $dn.ToString()
       }
+      # Application is an array when a package declares more than one entry
+      # point; its .VisualElements.Square44x44Logo would then also be an
+      # array (PowerShell's member enumeration), and casting that straight
+      # to [string] would join every path with a space. Only the first
+      # entry point's logo is used - that is the one Windows itself shows.
+      $logoRelativePath = @($manifest.Package.Applications.Application)[0].VisualElements.Square44x44Logo
+      if ($logoRelativePath) {
+        $icon = Get-AppxIconDataUri -InstallLocation $p.InstallLocation -LogoRelativePath ([string]$logoRelativePath)
+      }
     } catch {
-      # Keep the raw package Name as a fallback - not fatal.
+      # Keep the raw package Name as a fallback, and no icon - not fatal.
     }
 
     [pscustomobject]@{
       id             = $p.PackageFamilyName
       name           = $displayName
       recommendation = Get-AppRecommendation -Name $p.Name
+      icon           = $icon
     }
   }
 

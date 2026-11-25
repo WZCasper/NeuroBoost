@@ -11,6 +11,7 @@ const DEFAULTS = {
   autoBoostEnabledOnLaunch: false,
   autoBoostCpuThreshold: 25,
   customHeavyApps: [], // extra process names (without .exe) the user wants auto-boosted
+  customBackgroundApps: [], // extra process names the user wants lowered (never closed) while a game runs
   startWithWindows: false,
   minimizeToTray: true,
   telemetryOptions: {

@@ -26,7 +26,7 @@ function loadLocales() {
 
 // Keys built at runtime as t('prefix.' + something); they cannot be resolved
 // statically, so anything under these prefixes is treated as in use.
-const DYNAMIC_PREFIXES = ['page.', 'priority.', 'telemetry.', 'disk.'];
+const DYNAMIC_PREFIXES = ['page.', 'priority.', 'telemetry.', 'disk.', 'startup.app'];
 
 function usedKeys() {
   const code =

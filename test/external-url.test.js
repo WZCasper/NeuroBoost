@@ -48,6 +48,28 @@ test('path traversal cannot escape the allowed prefix after URL normalisation', 
   assert.equal(isAllowedExternalUrl('https://github.com/WZCasper/NeuroBoost/%2e%2e/%2e%2e/evil'), false);
 });
 
+test('allows the developer Telegram and donation links', () => {
+  assert.equal(isAllowedExternalUrl('https://t.me/WZ_Casper'), true);
+  assert.equal(isAllowedExternalUrl('https://dalink.to/wz_casper'), true);
+});
+
+test('rejects look-alike hosts and traversal for the Telegram and donation links', () => {
+  for (const url of [
+    'http://t.me/WZ_Casper',
+    'https://t.me.evil.example/WZ_Casper',
+    'https://evil.example/t.me/WZ_Casper',
+    'https://t.me@evil.example/WZ_Casper',
+    'https://user:pass@t.me/WZ_Casper',
+    'https://t.me:8443/WZ_Casper',
+    'https://dalink.to.evil.example/wz_casper',
+    'https://notdalink.to/wz_casper',
+    'https://dalink.to/wz_casper/../../evil',
+    'https://dalink.to/someone_else'
+  ]) {
+    assert.equal(isAllowedExternalUrl(url), false, url);
+  }
+});
+
 test('rejects non-string and malformed input without throwing', () => {
   for (const value of [undefined, null, 42, {}, [], '', 'not a url', '//github.com/WZCasper/NeuroBoost']) {
     assert.equal(isAllowedExternalUrl(value), false, String(value));

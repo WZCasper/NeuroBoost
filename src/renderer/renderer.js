@@ -157,6 +157,25 @@
 
   const { escapeHtml } = window.NeuroBoostEscape;
 
+  const GENERIC_APP_ICON_SVG =
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73V8z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/></svg>';
+
+  function appIconHtml(iconDataUri, sizeClass) {
+    const cls = sizeClass || 'w-9 h-9';
+    if (iconDataUri) {
+      return (
+        '<span class="' + cls + ' rounded-lg bg-neuro-800 flex items-center justify-center shrink-0 overflow-hidden">' +
+        '<img src="' + escapeHtml(iconDataUri) + '" alt="" class="w-full h-full object-contain" />' +
+        '</span>'
+      );
+    }
+    return (
+      '<span class="' + cls + ' rounded-lg bg-neuro-800 flex items-center justify-center text-slate-400 shrink-0">' +
+      GENERIC_APP_ICON_SVG +
+      '</span>'
+    );
+  }
+
   // ---- toasts ---------------------------------------------------------
   const TOAST_ICONS = {
     success: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>',
@@ -268,6 +287,99 @@
     $('#ovRamTotalText').textContent = info.totalGB.toFixed(1) + ' ГБ всего';
   }
 
+  function renderHardwareInfo(info) {
+    const cpuLoad = info.cpu && typeof info.cpu.loadPercent === 'number' ? info.cpu.loadPercent : null;
+    $('#hwCpuLoad').textContent = cpuLoad === null ? '-%' : cpuLoad.toFixed(0) + '%';
+    $('#hwCpuLoadBar').style.width = (cpuLoad === null ? 0 : Math.min(100, cpuLoad)) + '%';
+    const cpuName = (info.cpu && info.cpu.name) || t('overview.unknown');
+    $('#hwCpuName').textContent = cpuName;
+    $('#hwCpuName').title = cpuName;
+
+    const gpu = info.gpus && info.gpus.length ? info.gpus[0] : null;
+    const gpuLoad = info.gpuLoad && typeof info.gpuLoad.loadPercent === 'number' ? info.gpuLoad.loadPercent : null;
+    $('#hwGpuLoad').textContent = gpuLoad === null ? '-%' : gpuLoad.toFixed(0) + '%';
+    $('#hwGpuLoadBar').style.width = (gpuLoad === null ? 0 : Math.min(100, gpuLoad)) + '%';
+    const gpuName = gpu ? gpu.name : t('overview.noDiscreteGpu');
+    $('#hwGpuName').textContent = gpuName;
+    $('#hwGpuName').title = gpuName;
+
+    const modules = (info.ram && info.ram.modules) || [];
+    const ramUsedPercent = info.ram && typeof info.ram.usedPercent === 'number' ? info.ram.usedPercent : null;
+    $('#hwRamSummary').textContent = ramUsedPercent === null ? '-%' : ramUsedPercent.toFixed(0) + '%';
+    $('#hwRamModules').textContent = modules.length ? t('overview.ramModulesCount', { count: modules.length }) : t('overview.unknown');
+
+    const board = info.board;
+    $('#hwBoardProduct').textContent = (board && board.product) || t('overview.unknown');
+    $('#hwBoardProduct').title = (board && board.product) || '';
+    $('#hwBoardManufacturer').textContent = (board && board.manufacturer) || '';
+    $('#hwBoardManufacturer').title = (board && board.manufacturer) || '';
+  }
+
+  async function loadHardwareInfo() {
+    try {
+      const info = await call(window.neuroboost.hardware.info());
+      renderHardwareInfo(info);
+    } catch (err) {
+      showError('Не удалось получить данные о железе: ' + err.message);
+    }
+    loadHardwareTemps();
+  }
+
+  function renderTempBadge(id, celsius) {
+    const el = $(id);
+    if (typeof celsius === 'number') {
+      el.textContent = celsius.toFixed(0) + '\u00b0C';
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  }
+
+  async function loadHardwareTemps() {
+    try {
+      const temps = await call(window.neuroboost.hardware.temps());
+      if (temps.available) {
+        renderTempBadge('#hwCpuTempBadge', temps.cpuTempC);
+        renderTempBadge('#hwGpuTempBadge', temps.gpuTempC);
+        $('#hwEnableTempsBtn').classList.add('hidden');
+        $('#hwTempsNote').classList.add('hidden');
+      } else {
+        renderTempBadge('#hwCpuTempBadge', null);
+        renderTempBadge('#hwGpuTempBadge', null);
+        $('#hwEnableTempsBtn').classList.remove('hidden');
+      }
+    } catch (err) {
+      renderTempBadge('#hwCpuTempBadge', null);
+      renderTempBadge('#hwGpuTempBadge', null);
+      $('#hwEnableTempsBtn').classList.remove('hidden');
+    }
+  }
+
+  async function enableHardwareTemps() {
+    const btn = $('#hwEnableTempsBtn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = t('overview.installingTemps');
+    $('#hwTempsNote').classList.remove('hidden');
+    try {
+      const result = await call(window.neuroboost.hardware.ensurePawnIo());
+      if (result.installed) {
+        await loadHardwareTemps();
+        if ($('#hwEnableTempsBtn').classList.contains('hidden')) {
+          return;
+        }
+        showError(t('overview.tempsUnavailable'));
+      } else {
+        showError(t('overview.tempsInstallFailed'));
+      }
+    } catch (err) {
+      showError(t('overview.tempsInstallFailed'));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+
   async function loadOverview() {
     try {
       const info = await call(window.neuroboost.ram.info());
@@ -338,9 +450,7 @@
       card.className = 'glass-card rounded-xl p-4 flex items-center gap-3 cursor-pointer border ' + borderStyle;
       card.innerHTML =
         '<span class="w-2 h-2 rounded-full shrink-0 ' + dotColor + '"></span>' +
-        '<span class="w-9 h-9 rounded-lg bg-neuro-800 flex items-center justify-center text-slate-400 shrink-0">' +
-        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73V8z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/></svg>' +
-        '</span>' +
+        appIconHtml(app.icon) +
         '<span class="flex-1 min-w-0">' +
         '<span class="block text-[13px] text-slate-200 truncate">' + escapeHtml(app.name) + '</span>' +
         (badge ? '<span class="block mt-1">' + badge + '</span>' : '') +
@@ -485,12 +595,13 @@
       renderTelemetryStatus();
 
       if (result.failed > 0) {
-        const failedLabels = result.results
-          .filter((r) => r.status === 'failed')
-          .map((r) => telemetryKeyLabel(r.key))
-          .join(', ');
+        const failedKeys = result.results.filter((r) => r.status === 'failed').map((r) => r.key);
+        const failedLabels = failedKeys.map((k) => telemetryKeyLabel(k)).join(', ');
         $('#telemetryStatusText').textContent = t('telemetry.partial', { changed: result.changed, failed: result.failed });
         showError(t('telemetry.failedList', { list: failedLabels }));
+        if (failedKeys.includes('widgets')) {
+          showError(t('telemetry.widgetsBlockedByWindows'));
+        }
       } else {
         $('#telemetryStatusText').textContent = 'Настроено \u00b7 применено: ' + result.changed;
         showToast('success', t('telemetry.applied', { count: result.changed }));
@@ -807,12 +918,21 @@
 
     state.startupItems.forEach((item) => {
       const row = document.createElement('div');
-      row.className = 'glass-card rounded-xl p-4 flex items-center gap-4';
+      const isSafeToDisable = !!item.recommendation;
+      row.className =
+        'glass-card rounded-xl p-4 flex items-center gap-4 border ' +
+        (isSafeToDisable ? 'border-warn/30' : 'border-white/5');
+      const nameTitle = isSafeToDisable ? t(item.recommendation) : item.name;
+      const safeBadge = isSafeToDisable
+        ? '<span class="nb-pill nb-pill-warn shrink-0" title="' + escapeHtml(t(item.recommendation)) + '">' + escapeHtml(t('startup.safeToDisable')) + '</span>'
+        : '';
       row.innerHTML =
+        appIconHtml(item.icon, 'w-8 h-8') +
         '<div class="flex-1 min-w-0">' +
-        '<div class="text-[13px] text-slate-200 truncate">' + escapeHtml(item.name) + '</div>' +
+        '<div class="text-[13px] text-slate-200 truncate" title="' + escapeHtml(nameTitle) + '">' + escapeHtml(item.name) + '</div>' +
         '<div class="text-[11px] text-slate-500 truncate font-mono" title="' + escapeHtml(item.command) + '">' + escapeHtml(item.command) + '</div>' +
         '</div>' +
+        safeBadge +
         '<div class="relative inline-block w-11 h-6 shrink-0">' +
         '<input type="checkbox" id="su-' + escapeHtml(item.id) + '" class="nb-toggle-input" data-startup-id="' + escapeHtml(item.id) + '"' + (item.enabled ? ' checked' : '') + ' />' +
         '<label for="su-' + escapeHtml(item.id) + '" class="nb-toggle-label"></label>' +
@@ -860,12 +980,19 @@
 
     state.diskCategories.forEach((cat) => {
       const card = document.createElement('label');
-      card.className = 'glass-card rounded-xl p-4 flex items-center gap-3 cursor-pointer';
+      const isSafe = !!cat.recommendation;
+      card.className =
+        'glass-card rounded-xl p-4 flex items-center gap-3 cursor-pointer border ' +
+        (isSafe ? 'border-warn/30' : 'border-white/5');
+      const safeBadge = isSafe
+        ? '<span class="nb-pill nb-pill-warn shrink-0" title="' + escapeHtml(t(cat.recommendation)) + '">' + escapeHtml(t('disk.safeToClean')) + '</span>'
+        : '';
       card.innerHTML =
         '<span class="flex-1 min-w-0">' +
         '<span class="block text-[13px] text-slate-200">' + escapeHtml(diskCategoryLabel(cat.id)) + '</span>' +
         '<span class="block text-[12px] text-cyan nb-mono mt-0.5">' + formatBytes(cat.sizeBytes) + '</span>' +
         '</span>' +
+        safeBadge +
         '<input type="checkbox" class="h-4 w-4 accent-cyan shrink-0" data-disk-id="' + escapeHtml(cat.id) + '" ' + (cat.sizeBytes > 0 ? '' : 'disabled') + ' />';
       list.appendChild(card);
     });
@@ -959,6 +1086,7 @@
     $('#settingCpuThreshold').value = s.autoBoostCpuThreshold;
     $('#settingCpuThresholdValue').textContent = s.autoBoostCpuThreshold + '%';
     $('#settingCustomApps').value = (s.customHeavyApps || []).join(', ');
+    $('#settingCustomBackgroundApps').value = (s.customBackgroundApps || []).join(', ');
     $('#settingLanguage').value = s.language || 'ru';
 
     // Auto-Boost may already be running (e.g. main process auto-started it
@@ -1020,12 +1148,15 @@
       btn.disabled = true;
       try {
         const threshold = Number($('#settingCpuThreshold').value);
-        const customApps = $('#settingCustomApps').value
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean);
+        const splitNames = (value) => value.split(',').map((s) => s.trim()).filter(Boolean);
+        const customApps = splitNames($('#settingCustomApps').value);
+        const customBackgroundApps = splitNames($('#settingCustomBackgroundApps').value);
         state.settings = await call(
-          window.neuroboost.settings.update({ autoBoostCpuThreshold: threshold, customHeavyApps: customApps })
+          window.neuroboost.settings.update({
+            autoBoostCpuThreshold: threshold,
+            customHeavyApps: customApps,
+            customBackgroundApps
+          })
         );
         showToast('success', t('settings.autoBoostSaved'));
       } catch (err) {
@@ -1127,6 +1258,22 @@
     $('#processRefreshBtn').addEventListener('click', refreshProcesses);
     $('#startupRefreshBtn').addEventListener('click', loadStartupItems);
     $('#diskRescanBtn').addEventListener('click', loadDiskCategories);
+    $('#hwRefreshBtn').addEventListener('click', loadHardwareInfo);
+    $('#hwEnableTempsBtn').addEventListener('click', enableHardwareTemps);
+
+    // Developer credit: clicking the name opens Telegram, the popup's button
+    // opens the donation page. Both URLs are on the main process's
+    // allowlist (pure.js) - app:openExternal refuses anything else, so
+    // these constants are the only place they need to be kept in sync.
+    const openDeveloperLink = async (url) => {
+      try {
+        await window.neuroboost.openExternal(url);
+      } catch (err) {
+        showError(t('ui.devLinkFailed'));
+      }
+    };
+    $('#devCreditBtn').addEventListener('click', () => openDeveloperLink('https://t.me/WZ_Casper'));
+    $('#devDonateBtn').addEventListener('click', () => openDeveloperLink('https://dalink.to/wz_casper'));
     $('#diskCleanBtn').addEventListener('click', runDiskClean);
 
     window.neuroboost.debloat.onProgress(appendDebloatProgress);
@@ -1136,6 +1283,7 @@
       loadTelemetryStatus();
       loadOverview();
       loadMemoryInfo();
+      loadHardwareInfo();
       loadSettings().then(() => {
         if (state.settings && state.settings.language) {
           setLocale(state.settings.language);

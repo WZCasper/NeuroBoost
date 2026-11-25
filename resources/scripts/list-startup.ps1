@@ -13,6 +13,8 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib\icon-extract.ps1')
+. (Join-Path $PSScriptRoot 'lib\startup-recommendations.ps1')
 
 $items = New-Object System.Collections.Generic.List[object]
 
@@ -37,12 +39,15 @@ foreach ($rp in $runPaths) {
         $enabled = $false
       }
     }
+    $exePath = Get-ExecutablePathFromCommandLine -CommandLine $command
     $items.Add([pscustomobject]@{
-      id      = "run|$($rp.scope)|$name"
-      type    = 'run'
-      name    = $name
-      command = $command
-      enabled = $enabled
+      id             = "run|$($rp.scope)|$name"
+      type           = 'run'
+      name           = $name
+      command        = $command
+      enabled        = $enabled
+      icon           = Get-ExeIconDataUri -Path $exePath
+      recommendation = Get-StartupRecommendation -Name $name
     })
   }
 }
@@ -55,11 +60,13 @@ foreach ($folder in $folders) {
 
   Get-ChildItem -Path $folder -Filter '*.lnk' -File -ErrorAction SilentlyContinue | ForEach-Object {
     $items.Add([pscustomobject]@{
-      id      = "folder||$($_.FullName)"
-      type    = 'folder'
-      name    = $_.BaseName
-      command = $_.FullName
-      enabled = $true
+      id             = "folder||$($_.FullName)"
+      type           = 'folder'
+      name           = $_.BaseName
+      command        = $_.FullName
+      enabled        = $true
+      icon           = Get-ExeIconDataUri -Path $_.FullName
+      recommendation = Get-StartupRecommendation -Name $_.BaseName
     })
   }
 
@@ -67,11 +74,13 @@ foreach ($folder in $folders) {
   if (Test-Path $disabledPath) {
     Get-ChildItem -Path $disabledPath -Filter '*.lnk' -File -ErrorAction SilentlyContinue | ForEach-Object {
       $items.Add([pscustomobject]@{
-        id      = "folder||$($_.FullName)"
-        type    = 'folder'
-        name    = $_.BaseName
-        command = $_.FullName
-        enabled = $false
+        id             = "folder||$($_.FullName)"
+        type           = 'folder'
+        name           = $_.BaseName
+        command        = $_.FullName
+        enabled        = $false
+        icon           = Get-ExeIconDataUri -Path $_.FullName
+        recommendation = Get-StartupRecommendation -Name $_.BaseName
       })
     }
   }

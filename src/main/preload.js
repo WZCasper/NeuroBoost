@@ -52,6 +52,11 @@ contextBridge.exposeInMainWorld('neuroboost', {
     clean: (categoryIds) => invoke('disk:clean', categoryIds),
     onProgress: (cb) => subscribe('disk:progress', cb)
   },
+  hardware: {
+    info: () => invoke('hardware:info'),
+    ensurePawnIo: () => invoke('hardware:ensurePawnIo'),
+    temps: () => invoke('hardware:temps')
+  },
   restorePoint: {
     create: (description) => invoke('restorePoint:create', description)
   },

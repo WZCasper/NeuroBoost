@@ -4,7 +4,10 @@ const path = require('path');
 const { runPowerShellFile } = require('./powershell-runner');
 const { scriptsDir } = require('./paths');
 const { listProcessesViaWorker, stopWorker: stopProcessWorker } = require('./process-worker');
-const { pickBoostTarget: pickBoostTargetPure, CRITICAL_NAMES, HEAVY_APP_NAMES, DEPRIORITIZE_NAMES } = require('./pure');
+const {
+  pickBoostTarget: pickBoostTargetPure, CRITICAL_NAMES, HEAVY_APP_NAMES,
+  toNameSet, planBackgroundLowering, planPriorityRestore
+} = require('./pure');
 
 // Process listing runs through a long-lived PowerShell worker
 // (process-worker.js) instead of spawning a fresh powershell.exe on every
@@ -33,18 +36,27 @@ const ALLOWED_PRIORITIES = ['Idle', 'BelowNormal', 'Normal', 'AboveNormal', 'Hig
 // see setAutoBoostConfig, driven by user settings.
 let genericBoostCpuThreshold = 25;
 let customHeavyAppNames = new Set();
+let customBackgroundAppNames = new Set();
 
-function setAutoBoostConfig({ cpuThreshold, customHeavyApps } = {}) {
+function setAutoBoostConfig({ cpuThreshold, customHeavyApps, customBackgroundApps } = {}) {
   if (typeof cpuThreshold === 'number' && cpuThreshold > 0 && cpuThreshold <= 100) {
     genericBoostCpuThreshold = cpuThreshold;
   }
+  // Both lists go through the same normalisation (trim, lower-case, strip a
+  // trailing ".exe"), so typing "Chrome.exe" works the same as "chrome".
   if (Array.isArray(customHeavyApps)) {
-    customHeavyAppNames = new Set(customHeavyApps.map((n) => String(n).trim().toLowerCase()).filter(Boolean));
+    customHeavyAppNames = toNameSet(customHeavyApps);
+  }
+  if (Array.isArray(customBackgroundApps)) {
+    customBackgroundAppNames = toNameSet(customBackgroundApps);
   }
 }
 
 let autoBoostTimer = null;
 let autoBoostTarget = null; // { pid, name } currently boosted to High, or null
+// pid -> normalised name of every background app Auto-Boost lowered during
+// the current boost session, so exactly those (and nothing else) are put back.
+const loweredByBoost = new Map();
 
 // A manual "Refresh" click and auto-boost's own polling loop can land at the
 // same time; without this guard they'd spawn two concurrent powershell.exe
@@ -121,6 +133,29 @@ function pickBoostTarget(procs) {
   return pickBoostTargetPure(procs, { cpuThreshold: genericBoostCpuThreshold, customHeavyApps: customHeavyAppNames });
 }
 
+// Puts back everything Auto-Boost lowered once the boost session ends (game
+// closed, or Auto-Boost switched off). Before this existed the background
+// apps simply stayed on BelowNormal until they were restarted.
+// See planPriorityRestore for the two safety checks (same program, still on
+// BelowNormal). If the process list cannot be read the record is kept, so a
+// later attempt can still restore them instead of forgetting them.
+async function restoreLoweredApps(procs) {
+  if (loweredByBoost.size === 0) return;
+  let current = procs;
+  if (!current) {
+    try {
+      current = await listProcesses();
+    } catch (_) {
+      return;
+    }
+  }
+  const toRestore = planPriorityRestore(loweredByBoost, current);
+  loweredByBoost.clear();
+  for (const pid of toRestore) {
+    await setProcessPriority(pid, 'Normal').catch(() => {});
+  }
+}
+
 async function startAutoBoost(options = {}, onEvent) {
   if (autoBoostTimer) return { running: true };
 
@@ -162,9 +197,17 @@ async function startAutoBoost(options = {}, onEvent) {
         autoBoostTarget = { pid: target.pid, name: target.name };
         reschedule(activeIntervalMs);
 
-        for (const p of procs) {
-          if (DEPRIORITIZE_NAMES.has(p.name.toLowerCase()) && p.priority === 'Normal' && p.pid !== target.pid) {
-            await setProcessPriority(p.pid, 'BelowNormal').catch(() => {});
+        const lowering = planBackgroundLowering(procs, target, {
+          customBackground: customBackgroundAppNames,
+          customHeavy: customHeavyAppNames
+        });
+        for (const p of lowering) {
+          try {
+            await setProcessPriority(p.pid, 'BelowNormal');
+            loweredByBoost.set(p.pid, p.name);
+          } catch (_) {
+            // Access denied (e.g. a program that guards itself) or it already
+            // exited: nothing was changed, so there is nothing to remember.
           }
         }
       } else {
@@ -172,6 +215,7 @@ async function startAutoBoost(options = {}, onEvent) {
           await setProcessPriority(autoBoostTarget.pid, 'Normal').catch(() => {});
           autoBoostTarget = null;
         }
+        await restoreLoweredApps(procs);
         const top = procs[0];
         if (onEvent) {
           onEvent({ type: 'idle', topName: top ? top.name : null, topCpu: top ? top.cpuPercent : 0 });
@@ -198,6 +242,7 @@ async function stopAutoBoost() {
     await setProcessPriority(autoBoostTarget.pid, 'Normal').catch(() => {});
     autoBoostTarget = null;
   }
+  await restoreLoweredApps();
   return { running: false };
 }
 

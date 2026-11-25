@@ -179,7 +179,7 @@ app.whenReady().then(async () => {
 
   if (settings.autoBoostEnabledOnLaunch) {
     const { startAutoBoost, setAutoBoostConfig } = require('./lib/process-manager');
-    setAutoBoostConfig({ cpuThreshold: settings.autoBoostCpuThreshold, customHeavyApps: settings.customHeavyApps });
+    setAutoBoostConfig({ cpuThreshold: settings.autoBoostCpuThreshold, customHeavyApps: settings.customHeavyApps, customBackgroundApps: settings.customBackgroundApps });
     startAutoBoost({ intervalMs: 8000 }, (event) => handleAutoBoostEvent(event));
     autoBoostRunningForTray = true;
     updateTrayMenu();
@@ -352,6 +352,7 @@ function registerIpcHandlers() {
   const { createRestorePoint } = require('./lib/restore-point');
   const { getSettings, updateSettings } = require('./lib/settings');
   const { getAutostartStatus, setAutostart } = require('./lib/autostart');
+  const { getHardwareInfo, ensurePawnIo, getHardwareTemps } = require('./lib/hardware-info');
 
   const safe = (channel, handler) => {
     ipcMain.handle(channel, async (event, ...args) => {
@@ -403,7 +404,7 @@ function registerIpcHandlers() {
   safe('process:kill', (pid, name) => killProcess(pid, name));
   safe('process:autoBoostStart', (options) => {
     const settings = getSettings();
-    setAutoBoostConfig({ cpuThreshold: settings.autoBoostCpuThreshold, customHeavyApps: settings.customHeavyApps });
+    setAutoBoostConfig({ cpuThreshold: settings.autoBoostCpuThreshold, customHeavyApps: settings.customHeavyApps, customBackgroundApps: settings.customBackgroundApps });
     const result = startAutoBoost(options, handleAutoBoostEvent);
     autoBoostRunningForTray = true;
     updateTrayMenu();
@@ -428,6 +429,10 @@ function registerIpcHandlers() {
     })
   );
 
+  safe('hardware:info', () => getHardwareInfo());
+  safe('hardware:ensurePawnIo', () => ensurePawnIo());
+  safe('hardware:temps', () => getHardwareTemps());
+
   safe('restorePoint:create', (description) => createRestorePoint(description));
 
   safe('settings:get', () => getSettings());
@@ -441,7 +446,7 @@ function registerIpcHandlers() {
     }
     const next = updateSettings(partial);
     if (partial.autoBoostCpuThreshold || partial.customHeavyApps) {
-      setAutoBoostConfig({ cpuThreshold: next.autoBoostCpuThreshold, customHeavyApps: next.customHeavyApps });
+      setAutoBoostConfig({ cpuThreshold: next.autoBoostCpuThreshold, customHeavyApps: next.customHeavyApps, customBackgroundApps: next.customBackgroundApps });
     }
     return next;
   });

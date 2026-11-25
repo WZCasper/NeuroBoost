@@ -9,6 +9,7 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib\disk-recommendations.ps1')
 
 function Get-FolderSize {
   param([string]$Path)
@@ -82,5 +83,9 @@ if (Test-Path $firefoxProfiles) {
 }
 if ($null -eq $ffSize) { $ffSize = 0 }
 $categories.Add([pscustomobject]@{ id = 'firefox_cache'; sizeBytes = [int64]$ffSize })
+
+foreach ($category in $categories) {
+  $category | Add-Member -NotePropertyName 'recommendation' -NotePropertyValue (Get-DiskCategoryRecommendation -CategoryId $category.id)
+}
 
 ConvertTo-Json -InputObject $categories -Compress -Depth 3

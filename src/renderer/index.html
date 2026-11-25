@@ -15,17 +15,17 @@
 
   <div id="onboarding" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/70 backdrop-blur-sm p-6" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
     <div class="glass-card rounded-2xl p-8 max-w-lg w-full" style="border-top: 2px solid var(--color-cyan)">
-      <h2 id="onboardingTitle" class="text-2xl font-bold text-white mb-2">Добро пожаловать в <span class="text-gradient">NeuroBoost</span></h2>
-      <p class="text-sm text-slate-400 mb-5">Короткий обзор того, что здесь есть — 30 секунд.</p>
+      <h2 id="onboardingTitle" class="text-2xl font-bold text-white mb-2"><span data-i18n="onboarding.welcomeTo">Добро пожаловать в</span> <span class="text-gradient">NeuroBoost</span></h2>
+      <p class="text-sm text-slate-400 mb-5" data-i18n="onboarding.subtitle">Короткий обзор того, что здесь есть — 30 секунд.</p>
       <ul class="flex flex-col gap-3 text-[13px] text-slate-300 mb-6">
-        <li class="flex gap-3"><span class="text-cyan shrink-0">01</span><span><span class="text-white">Приложения</span> — удаление предустановленного хлама. Красным помечено то, что стоит убрать в первую очередь. Всё возвращается из Microsoft Store.</span></li>
-        <li class="flex gap-3"><span class="text-cyan shrink-0">02</span><span><span class="text-white">Телеметрия</span> — отключение слежки Windows. Защитник, брандмауэр и обновления не затрагиваются, любые изменения отменяются одной кнопкой.</span></li>
-        <li class="flex gap-3"><span class="text-cyan shrink-0">03</span><span><span class="text-white">Память и Диск</span> — реальная очистка ОЗУ и временных файлов с показом того, что происходит прямо сейчас.</span></li>
-        <li class="flex gap-3"><span class="text-cyan shrink-0">04</span><span><span class="text-white">Процессы и Автозагрузка</span> — контроль нагрузки и того, что стартует вместе с Windows.</span></li>
+        <li class="flex gap-3"><span class="text-cyan shrink-0">01</span><span><span class="text-white" data-i18n="onboarding.item1Title">Приложения</span> <span data-i18n="onboarding.item1Desc">— удаление предустановленного хлама. Красным помечено то, что стоит убрать в первую очередь. Всё возвращается из Microsoft Store.</span></span></li>
+        <li class="flex gap-3"><span class="text-cyan shrink-0">02</span><span><span class="text-white" data-i18n="onboarding.item2Title">Телеметрия</span> <span data-i18n="onboarding.item2Desc">— отключение слежки Windows. Защитник, брандмауэр и обновления не затрагиваются, любые изменения отменяются одной кнопкой.</span></span></li>
+        <li class="flex gap-3"><span class="text-cyan shrink-0">03</span><span><span class="text-white" data-i18n="onboarding.item3Title">Память и Диск</span> <span data-i18n="onboarding.item3Desc">— реальная очистка ОЗУ и временных файлов с показом того, что происходит прямо сейчас.</span></span></li>
+        <li class="flex gap-3"><span class="text-cyan shrink-0">04</span><span><span class="text-white" data-i18n="onboarding.item4Title">Процессы и Автозагрузка</span> <span data-i18n="onboarding.item4Desc">— контроль нагрузки и того, что стартует вместе с Windows.</span></span></li>
       </ul>
       <div class="flex items-center gap-3">
         <button class="nb-btn-primary" id="onboardingCloseBtn" type="button" data-i18n="ui.startUsing">Начать работу</button>
-        <span class="text-[12px] text-slate-500">Перед рискованными действиями создаётся точка восстановления Windows.</span>
+        <span class="text-[12px] text-slate-500" data-i18n="onboarding.footnote">Перед рискованными действиями создаётся точка восстановления Windows.</span>
       </div>
     </div>
   </div>
@@ -95,6 +95,22 @@
       </div>
       <div class="text-xs text-slate-500 font-mono" id="footerOs">Определение ОС...</div>
       <div class="text-xs text-slate-500 font-mono mt-1">Права админа: <span id="footerAdmin" class="text-slate-400">...</span></div>
+      <div class="mt-3 pt-3 border-t border-white/5">
+        <div class="relative group inline-block" id="devCreditWrap">
+          <button type="button" id="devCreditBtn" class="text-xs text-slate-500 hover:text-cyan focus:text-cyan transition-colors font-mono">
+            <span>&#20119;</span> Casper
+          </button>
+          <div id="devCreditPopup" class="hidden group-hover:block group-focus-within:block absolute bottom-full left-0 pb-2 w-64 z-50">
+            <div class="glass-card rounded-xl p-4 shadow-xl">
+              <p class="text-[12px] text-slate-300 mb-3" data-i18n="ui.devCreditText">NeuroBoost бесплатна и безопасна. Если программа вам помогла, можно поддержать разработчика.</p>
+              <button type="button" id="devDonateBtn" class="nb-btn-primary w-full flex items-center justify-center gap-2 text-[12px]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                <span data-i18n="ui.devDonateBtn">Поддержать разработчика</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </aside>
 
@@ -173,6 +189,76 @@
               <div class="text-sm text-slate-400 mb-2">слежка и сбор данных</div>
             </div>
           </button>
+        </div>
+
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-white" data-i18n="overview.hardwareTitle">Железо этого ПК</h3>
+          <div class="flex items-center gap-3">
+            <button id="hwEnableTempsBtn" class="nb-btn text-xs hidden" type="button" data-i18n="overview.enableTemps">Включить температуры</button>
+            <button id="hwRefreshBtn" class="nb-btn text-xs" type="button" data-i18n="overview.hardwareRefresh">Обновить</button>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500 mb-4 hidden" id="hwTempsNote" data-i18n="overview.enableTempsNote">Температуры требуют установки стороннего компонента (PawnIO, подписан Microsoft) для чтения датчиков. Необязательно.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div class="glass-card rounded-xl p-6 flex flex-col">
+            <div class="flex justify-between items-start mb-4">
+              <div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono text-slate-500" data-i18n="overview.cpuLabel">ПРОЦЕССОР</span>
+                <span class="text-xs font-mono text-orange-400 hidden" id="hwCpuTempBadge"></span>
+              </div>
+            </div>
+            <div class="mt-auto">
+              <div class="text-2xl font-bold text-white mb-1" id="hwCpuLoad">-%</div>
+              <div class="w-full bg-neuro-800 rounded-full h-2 mb-2"><div class="h-2 rounded-full bg-cyan-400" id="hwCpuLoadBar" style="width:0%"></div></div>
+              <div class="text-xs text-slate-400 truncate" id="hwCpuName" title="">-</div>
+            </div>
+          </div>
+
+          <div class="glass-card rounded-xl p-6 flex flex-col">
+            <div class="flex justify-between items-start mb-4">
+              <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v4M10 10v4M14 10v4M18 10v4"/></svg>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono text-slate-500" data-i18n="overview.gpuLabel">ВИДЕОКАРТА</span>
+                <span class="text-xs font-mono text-orange-400 hidden" id="hwGpuTempBadge"></span>
+              </div>
+            </div>
+            <div class="mt-auto">
+              <div class="text-2xl font-bold text-white mb-1" id="hwGpuLoad">-%</div>
+              <div class="w-full bg-neuro-800 rounded-full h-2 mb-2"><div class="h-2 rounded-full bg-purple-400" id="hwGpuLoadBar" style="width:0%"></div></div>
+              <div class="text-xs text-slate-400 truncate" id="hwGpuName" title="">-</div>
+            </div>
+          </div>
+
+          <div class="glass-card rounded-xl p-6 flex flex-col">
+            <div class="flex justify-between items-start mb-4">
+              <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+              </div>
+              <span class="text-xs font-mono text-slate-500" data-i18n="overview.ramModulesLabel">ПАМЯТЬ</span>
+            </div>
+            <div class="mt-auto">
+              <div class="text-2xl font-bold text-white mb-1" id="hwRamSummary">-</div>
+              <div class="text-xs text-slate-400" id="hwRamModules">-</div>
+            </div>
+          </div>
+
+          <div class="glass-card rounded-xl p-6 flex flex-col">
+            <div class="flex justify-between items-start mb-4">
+              <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M9 6h0M9 10h0M9 14h0M9 18h0"/></svg>
+              </div>
+              <span class="text-xs font-mono text-slate-500" data-i18n="overview.boardLabel">МАТЕРИНСКАЯ ПЛАТА</span>
+            </div>
+            <div class="mt-auto">
+              <div class="text-sm font-semibold text-white mb-1 truncate" id="hwBoardProduct" title="">-</div>
+              <div class="text-xs text-slate-400 truncate" id="hwBoardManufacturer" title="">-</div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -516,6 +602,12 @@
           <div class="mt-3">
             <button class="nb-btn-primary" id="settingsSaveBtn" type="button" data-i18n="common.save">Сохранить настройки</button>
           </div>
+        </div>
+
+        <div class="glass-card rounded-xl p-5">
+          <div class="text-[13px] font-medium text-white mb-1" data-i18n="settings.customBackgroundTitle">Свои программы для снижения приоритета</div>
+          <p class="text-[12px] text-slate-400 mb-3" data-i18n="settings.customBackgroundDesc">Имена процессов через запятую, без .exe. Пока идёт игра, их приоритет временно снижается (не закрываются) и возвращается, как только игра закончится. Встроенная защита Windows и сама NeuroBoost никогда не трогаются.</p>
+          <textarea id="settingCustomBackgroundApps" rows="2" class="w-full bg-neuro-800 border border-white/10 rounded-lg px-3 py-2 text-[13px] text-slate-200 focus:outline-none focus:border-cyan transition-colors" placeholder="my_launcher, my_sync_tool"></textarea>
         </div>
 
         <div class="glass-card rounded-xl p-5 mt-6">

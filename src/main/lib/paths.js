@@ -14,4 +14,10 @@ function scriptsDir() {
     : path.join(__dirname, '..', '..', '..', 'resources', 'scripts');
 }
 
-module.exports = { scriptsDir };
+function binDir() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'bin')
+    : path.join(__dirname, '..', '..', '..', 'resources', 'bin');
+}
+
+module.exports = { scriptsDir, binDir };
